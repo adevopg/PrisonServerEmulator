@@ -18,6 +18,7 @@
 #include <windows.h>   // Sleep
 #include <cstring>
 #include <cstdlib>
+#include <cctype>
 #include <ctime>
 #include <string>
 
@@ -125,6 +126,21 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
                           it->second.usuario.c_str(), it->second.idConexion);
         } else {
             registro::log("   ACK(tipo7) para conexión desconocida");
+        }
+        return;
+    }
+
+    // Tipo 4 = el cliente CIERRA/REINICIA la conexión (DISCONNECT de transporte).
+    // Lo envía, por ejemplo, tras un rechazo de login. Limpiamos su estado para
+    // no dejar conexiones colgadas (el cliente deja de reintentar al cerrarse).
+    if (esHandshake && tipo == 4) {
+        auto it = conexiones_.find(clave);
+        if (it != conexiones_.end()) {
+            registro::log("   handshake tipo4 (DISCONNECT) -> cierro conexión usuario='%s'",
+                          it->second.usuario.c_str());
+            conexiones_.erase(it);
+        } else {
+            registro::log("   handshake tipo4 (DISCONNECT) de conexión ya cerrada");
         }
         return;
     }
@@ -445,6 +461,31 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 }
 
 // ----------------------------------------------------------------------------
+//  Compara el hash de contraseña recibido con el guardado, TOLERANDO la "sal".
+//
+//  El cliente NO envía siempre el mismo hash: mezcla un valor de sesión que
+//  cambia los bytes en las posiciones 0,4,8,12,... (cada 4 bytes). Los otros 15
+//  bytes (de 21) son estables para una misma contraseña. Así que comparamos solo
+//  los bytes estables (ignoramos los que la sal modifica). Cada byte son 2
+//  caracteres hex, por lo que el byte b ocupa los caracteres [2b] y [2b+1].
+// ----------------------------------------------------------------------------
+static bool contrasenaCoincide(const std::string& recibidoHex,
+                               const std::string& guardadoHex) {
+    if (recibidoHex.size() != guardadoHex.size() || recibidoHex.empty())
+        return false;
+    int numBytes = static_cast<int>(recibidoHex.size() / 2);
+    for (int b = 0; b < numBytes; b++) {
+        if (b % 4 == 0) continue;                 // byte "salado": lo ignoramos
+        char r0 = (char)tolower((unsigned char)recibidoHex[2 * b]);
+        char r1 = (char)tolower((unsigned char)recibidoHex[2 * b + 1]);
+        char g0 = (char)tolower((unsigned char)guardadoHex[2 * b]);
+        char g1 = (char)tolower((unsigned char)guardadoHex[2 * b + 1]);
+        if (r0 != g0 || r1 != g1) return false;
+    }
+    return true;
+}
+
+// ----------------------------------------------------------------------------
 //  ¿Hay otra conexión activa con la misma cuenta? (sesión duplicada)
 // ----------------------------------------------------------------------------
 bool ServidorLogin::cuentaYaConectada(uint32_t idCuenta, uint64_t claveActual) {
@@ -485,16 +526,14 @@ EstadoCuenta ServidorLogin::evaluarEstado(const Conexion& con,
         return EstadoCuenta::BaneadaTemporal;
 
     // 5) Contraseña.
-    if (!c.hashContrasena.empty()) {
-        // Comparación sin distinguir mayúsculas/minúsculas (es hex).
-        if (_stricmp(hashRecibidoHex.c_str(), c.hashContrasena.c_str()) != 0)
+    //    OJO: el cliente "sala" el hash cada sesión, así que SOLO validamos si lo
+    //    pides con EXIGIR_PASSWORD (y entonces con comparación tolerante a la sal).
+    //    Por defecto NO se rechaza por contraseña: solo se registra el hash.
+    if (cfg().exigirContrasena) {
+        if (c.hashContrasena.empty())
+            return EstadoCuenta::ContrasenaIncorrecta;   // sin referencia para comparar
+        if (!contrasenaCoincide(hashRecibidoHex, c.hashContrasena))
             return EstadoCuenta::ContrasenaIncorrecta;
-    } else {
-        // No hay hash guardado: o exigimos contraseña, o dejamos pasar (y ya se
-        // registró el hash recibido para poder guardarlo en la base de datos).
-        if (cfg().exigirContrasena)
-            return EstadoCuenta::ContrasenaIncorrecta;
-        registro::log("   (cuenta sin password_hash: login permitido; copia el hash a la BD para exigirlo)");
     }
 
     // 6) Tiempo de juego / suscripción caducada.
