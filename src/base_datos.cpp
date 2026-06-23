@@ -91,7 +91,7 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
 
     // Todos los campos que el cliente necesita por prisión.
     const char* consulta =
-        "SELECT id, name, name2, flag, extra, population, modules FROM game_servers "
+        "SELECT id, name, name2, flag, extra, modules FROM game_servers "
         "WHERE online=1 ORDER BY sort_order";
 
     if (mysql_query(mysql_, consulta) != 0) return servidores;
@@ -106,8 +106,7 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
             s.nombre2   = fila[2] ? fila[2] : "";
             s.flag      = fila[3] ? static_cast<uint8_t>(strtoul(fila[3], nullptr, 10)) : 2;
             s.extra     = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 0;
-            s.poblacion = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 0;
-            s.modulos   = fila[6] ? static_cast<uint8_t>(strtoul(fila[6], nullptr, 10)) : 4;
+            s.modulos   = fila[5] ? static_cast<uint8_t>(strtoul(fila[5], nullptr, 10)) : 4;
             servidores.push_back(std::move(s));
         }
         mysql_free_result(res);
@@ -115,20 +114,31 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
     return servidores;
 }
 
-int BaseDatos::contarPersonajes(uint32_t idCuenta) {
-    if (!mysql_) return 0;
-    char consulta[160];
-    snprintf(consulta, sizeof consulta,
-             "SELECT COUNT(*) FROM characters WHERE account_id=%u AND deleted=0", idCuenta);
-    if (mysql_query(mysql_, consulta)) return 0;
+// Ejecuta un "SELECT COUNT(*) ..." y devuelve el número.
+static int contarFilas(MYSQL* mysql, const char* consulta) {
+    if (!mysql || mysql_query(mysql, consulta)) return 0;
     int n = 0;
-    MYSQL_RES* res = mysql_store_result(mysql_);
+    MYSQL_RES* res = mysql_store_result(mysql);
     if (res) {
         MYSQL_ROW fila = mysql_fetch_row(res);
         if (fila && fila[0]) n = atoi(fila[0]);
         mysql_free_result(res);
     }
     return n;
+}
+
+int BaseDatos::contarPersonajes(uint32_t idCuenta) {
+    char consulta[160];
+    snprintf(consulta, sizeof consulta,
+             "SELECT COUNT(*) FROM characters WHERE account_id=%u AND deleted=0", idCuenta);
+    return contarFilas(mysql_, consulta);
+}
+
+int BaseDatos::contarReclusos(uint32_t idServidor) {
+    char consulta[160];
+    snprintf(consulta, sizeof consulta,
+             "SELECT COUNT(*) FROM characters WHERE server_id=%u AND deleted=0", idServidor);
+    return contarFilas(mysql_, consulta);
 }
 
 std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
@@ -156,8 +166,8 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     return personajes;
 }
 
-bool BaseDatos::crearPersonaje(uint32_t idCuenta, int slot, const std::string& nick,
-                               const uint8_t* datos, int longitudDatos) {
+bool BaseDatos::crearPersonaje(uint32_t idCuenta, uint32_t idServidor, int slot,
+                               const std::string& nick, const uint8_t* datos, int longitudDatos) {
     if (!mysql_) return false;
 
     // Escapar el nick (texto) y el bloque de datos (binario) para el SQL.
@@ -174,8 +184,9 @@ bool BaseDatos::crearPersonaje(uint32_t idCuenta, int slot, const std::string& n
         blobEsc.assign(tmp.data(), m);
     }
 
-    std::string q = "INSERT INTO characters (account_id, slot, nick, appearance) VALUES (";
-    q += std::to_string(idCuenta) + ", " + std::to_string(slot) + ", '" + nickEsc + "', ";
+    std::string q = "INSERT INTO characters (account_id, server_id, slot, nick, appearance) VALUES (";
+    q += std::to_string(idCuenta) + ", " + std::to_string(idServidor) + ", " +
+         std::to_string(slot) + ", '" + nickEsc + "', ";
     q += blobEsc.empty() ? "NULL)" : ("'" + blobEsc + "')");
 
     return mysql_query(mysql_, q.c_str()) == 0;

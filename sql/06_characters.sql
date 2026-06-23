@@ -12,6 +12,7 @@ USE prison;
 CREATE TABLE IF NOT EXISTS characters (
   id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   account_id  INT UNSIGNED NOT NULL,                  -- cuenta dueña (accounts.id)
+  server_id   INT UNSIGNED NOT NULL DEFAULT 1,        -- prisión a la que pertenece (game_servers.id)
   slot        TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- ranura (0..n) dentro de la cuenta
   nick        VARCHAR(32)  NOT NULL,                  -- nombre del personaje
   sex         TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- sexo / género

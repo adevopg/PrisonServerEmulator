@@ -63,8 +63,9 @@ struct ServidorJuego {
     std::string nombre2;         // segundo texto (el cliente muestra "nombre nombre2")
     uint8_t     flag      = 2;   // byte que el cliente guarda en el nodo (por defecto 2)
     uint32_t    extra     = 0;   // dword extra que el cliente guarda en el nodo
-    uint32_t    poblacion = 0;   // "reclusos" conectados (= suma de los caracteres)
     uint8_t     modulos   = 4;   // nº de módulos de celdas (= nº de caracteres)
+    // NOTA: los "reclusos" YA NO salen de aquí; se cuentan dinámicamente con
+    //       contarReclusos() (= nº de personajes creados en esa prisión).
 };
 
 class BaseDatos {
@@ -92,13 +93,16 @@ public:
     // Cuántos personajes (no borrados) tiene la cuenta.
     int contarPersonajes(uint32_t idCuenta);
 
+    // "Reclusos" de una prisión = nº de personajes (no borrados) creados en ella.
+    int contarReclusos(uint32_t idServidor);
+
     // Carga los personajes (no borrados) de la cuenta, ordenados por ranura.
     std::vector<Personaje> cargarPersonajes(uint32_t idCuenta);
 
-    // Guarda un personaje nuevo. "datos" es el bloque crudo de aspecto/atributos
-    // que envía el cliente (puede ser nullptr). Devuelve true si se insertó.
-    bool crearPersonaje(uint32_t idCuenta, int slot, const std::string& nick,
-                        const uint8_t* datos, int longitudDatos);
+    // Guarda un personaje nuevo en una prisión. "datos" es el bloque crudo de
+    // aspecto/atributos del cliente (puede ser nullptr). Devuelve true si se insertó.
+    bool crearPersonaje(uint32_t idCuenta, uint32_t idServidor, int slot,
+                        const std::string& nick, const uint8_t* datos, int longitudDatos);
 
 private:
     MYSQL* mysql_ = nullptr;

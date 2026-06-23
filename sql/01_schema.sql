@@ -41,10 +41,10 @@ CREATE TABLE IF NOT EXISTS game_servers (
   flag        TINYINT UNSIGNED NOT NULL DEFAULT 2,       -- byte que el cliente guarda en el nodo
   extra       INT UNSIGNED NOT NULL DEFAULT 0,           -- dword extra que guarda el cliente
   online      TINYINT UNSIGNED NOT NULL DEFAULT 1,       -- 1 = aparece en la lista
-  population  INT UNSIGNED NOT NULL DEFAULT 0,           -- "reclusos" (= suma de los caracteres)
   modules     TINYINT UNSIGNED NOT NULL DEFAULT 4,       -- nº de módulos de celdas (= nº de caracteres)
   sort_order  INT NOT NULL DEFAULT 0,                    -- orden en la lista
   PRIMARY KEY (id)
+  -- Los "reclusos" NO se guardan aquí: se cuentan al vuelo (personajes por prisión).
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------
@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS game_servers (
 CREATE TABLE IF NOT EXISTS characters (
   id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   account_id  INT UNSIGNED NOT NULL,                  -- cuenta dueña (accounts.id)
+  server_id   INT UNSIGNED NOT NULL DEFAULT 1,        -- prisión a la que pertenece (game_servers.id)
   slot        TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- ranura (0..n) dentro de la cuenta
   nick        VARCHAR(32)  NOT NULL,                  -- nombre del personaje
   sex         TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- sexo / género

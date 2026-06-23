@@ -307,13 +307,16 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         registro::volcadoHex("   0x1394 CREATE payload:", datosCrear, longCrear);
 
         // Guardar en la base de datos (de momento: nick + bloque crudo completo).
+        // El personaje pertenece a una prisión (server_id); por ahora la 1.
+        uint32_t idServidor = 1;
         int slot = 0;
+        bool guardado = false;
         if (con.cuenta.id) {
             slot = bd_.contarPersonajes(con.cuenta.id);
-            bool ok = bd_.crearPersonaje(con.cuenta.id, slot, nick,
-                                         datosCrear, longCrear > 1024 ? 1024 : longCrear);
-            registro::log("   -> guardar personaje en BD: %s (cuenta=%u slot=%d)",
-                          ok ? "OK" : "FALLÓ", con.cuenta.id, slot);
+            guardado = bd_.crearPersonaje(con.cuenta.id, idServidor, slot, nick,
+                                          datosCrear, longCrear > 1024 ? 1024 : longCrear);
+            registro::log("   -> guardar personaje en BD: %s (cuenta=%u prisión=%u slot=%d)",
+                          guardado ? "OK" : "FALLÓ", con.cuenta.id, idServidor, slot);
         } else {
             registro::log("   (sin idCuenta válido: no se guarda en BD)");
         }
@@ -334,6 +337,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         nch[0x6a] = 0;                            // +0x6a estado
         enviarFragmentado(con, remoto, cca, 2 + 1 + 0x342);
         registro::log("   -> CHARCREATED (0x1395) ranura=%d", slot);
+
+        // Sincronizar en tiempo real: reenviar el conteo de reclusos (ya incluye
+        // el personaje recién creado) para que la lista quede actualizada.
+        if (guardado) enviarReclusos(con, remoto);
     }
     // -------------------- LATIDO (0x13a1) -> ACEPTAR + LISTA SERVIDORES --------------------
     else if (opcode == op::LATIDO && con.enviadoLogin && !con.enviadoAceptar) {
@@ -434,36 +441,9 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
         }
 
-        // AVAILABLESERVERS (0x13ac): por prisión [id:4][nChars:1][texto UTF-16].
-        // El cliente usa DOS valores independientes de este texto:
-        //   - nChars (nº de caracteres)        -> nº de MÓDULOS de celdas
-        //   - SUMA del valor de los caracteres -> nº de RECLUSOS (población)
-        // (rutina 0x48a432: add ecx, char). Por eso ponemos nChars = módulos y
-        // repartimos la población entre esos caracteres (su suma = reclusos).
-        {
-            static uint8_t data[256 * (5 + 2 * 255)]; int di = 0;
-            for (const auto& s : servidores) {
-                uint8_t nMod = s.modulos == 0 ? 1 : s.modulos;   // nChars = nº de módulos
-                uint32_t recl = s.poblacion;                     // se reparte en la suma
-                escribir32(data + di, s.id); di += 4; data[di++] = nMod;
-                for (int k = 0; k < nMod; k++) {
-                    // Repartir los reclusos entre los caracteres (cada uno cabe 0..0xffff).
-                    uint16_t v = 0;
-                    if (recl > 0) { v = recl > 0xffff ? 0xffff : (uint16_t)recl; recl -= v; }
-                    data[di++] = (uint8_t)(v & 0xff);
-                    data[di++] = (uint8_t)(v >> 8);
-                }
-            }
-            static uint8_t sv[8 + sizeof(data)]; int si = 0;
-            escribir16(sv, op::AVAILABLESERVERS); si = 2;
-            sv[si++] = static_cast<uint8_t>(servidores.size());   // count (byte)
-            escribir32(sv + si, (uint32_t)di); si += 4;
-            memcpy(sv + si, data, di); si += di;
-            uint8_t smsg[16 + sizeof(sv)];
-            int smlen = pr::componerMensajeApp(smsg, con.idConexion, sv, si);
-            enviarFiable(con, remoto, smsg, smlen);
-            registro::log("   -> 0x13ac AVAILABLESERVERS x%zu", servidores.size());
-        }
+        // AVAILABLESERVERS (0x13ac): módulos + reclusos (reclusos = nº de personajes
+        // creados en cada prisión, contados al vuelo -> siempre actualizado).
+        enviarReclusos(con, remoto);
         registro::log("   -> 0x13d5(aceptar)+0x13a9(prisiones)+0x13ac(reclusos)");
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
@@ -513,6 +493,41 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFiable(con, remoto, m, ml);
         registro::log("   *** SELECT (0x139f) -> 0x13f2 ENTERINGGAMEACCEPTED (pj 0) ***");
     }
+}
+
+// ----------------------------------------------------------------------------
+//  Envía AVAILABLESERVERS (0x13ac). Por cada prisión:
+//    - nChars (nº de caracteres del texto) = nº de MÓDULOS de celdas.
+//    - SUMA del valor de los caracteres     = nº de RECLUSOS, que se cuenta al
+//      vuelo en la BD (= personajes creados EN ESA prisión). Así, al crear un
+//      personaje, el contador se actualiza solo para todos.
+// ----------------------------------------------------------------------------
+void ServidorLogin::enviarReclusos(Conexion& con, const udp::endpoint& remoto) {
+    std::vector<ServidorJuego> servidores = bd_.listarServidores();
+    if (servidores.size() > 255) servidores.resize(255);
+
+    static uint8_t data[256 * (5 + 2 * 255)]; int di = 0;
+    for (const auto& s : servidores) {
+        uint8_t nMod = s.modulos == 0 ? 1 : s.modulos;          // nChars = nº de módulos
+        uint32_t recl = static_cast<uint32_t>(bd_.contarReclusos(s.id)); // reclusos = personajes de ESA prisión
+        escribir32(data + di, s.id); di += 4; data[di++] = nMod;
+        for (int k = 0; k < nMod; k++) {
+            // Repartir los reclusos entre los caracteres (cada uno cabe 0..0xffff).
+            uint16_t v = 0;
+            if (recl > 0) { v = recl > 0xffff ? 0xffff : (uint16_t)recl; recl -= v; }
+            data[di++] = (uint8_t)(v & 0xff);
+            data[di++] = (uint8_t)(v >> 8);
+        }
+    }
+    static uint8_t sv[8 + sizeof(data)]; int si = 0;
+    escribir16(sv, op::AVAILABLESERVERS); si = 2;
+    sv[si++] = static_cast<uint8_t>(servidores.size());   // count (byte)
+    escribir32(sv + si, (uint32_t)di); si += 4;
+    memcpy(sv + si, data, di); si += di;
+    uint8_t smsg[16 + sizeof(sv)];
+    int smlen = pr::componerMensajeApp(smsg, con.idConexion, sv, si);
+    enviarFiable(con, remoto, smsg, smlen);
+    registro::log("   -> 0x13ac AVAILABLESERVERS x%zu (reclusos al vuelo)", servidores.size());
 }
 
 // ----------------------------------------------------------------------------

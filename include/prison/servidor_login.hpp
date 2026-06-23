@@ -57,6 +57,10 @@ private:
     void enviarRechazo(Conexion& con, const boost::asio::ip::udp::endpoint& remoto,
                        EstadoCuenta estado);
 
+    // Envía AVAILABLESERVERS (0x13ac): por cada prisión, módulos (nº de celdas) y
+    // reclusos (= nº de personajes creados en esa prisión, contados al vuelo).
+    void enviarReclusos(Conexion& con, const boost::asio::ip::udp::endpoint& remoto);
+
     BaseDatos& bd_;
 
     // Conexiones activas: clave (IP+puerto) -> estado de la conexión.
