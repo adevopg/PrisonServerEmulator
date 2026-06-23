@@ -91,7 +91,7 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
 
     // Todos los campos que el cliente necesita por prisión.
     const char* consulta =
-        "SELECT id, name, name2, flag, extra, population FROM game_servers "
+        "SELECT id, name, name2, flag, extra, population, modules FROM game_servers "
         "WHERE online=1 ORDER BY sort_order";
 
     if (mysql_query(mysql_, consulta) != 0) return servidores;
@@ -107,6 +107,7 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
             s.flag      = fila[3] ? static_cast<uint8_t>(strtoul(fila[3], nullptr, 10)) : 2;
             s.extra     = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 0;
             s.poblacion = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 0;
+            s.modulos   = fila[6] ? static_cast<uint8_t>(strtoul(fila[6], nullptr, 10)) : 4;
             servidores.push_back(std::move(s));
         }
         mysql_free_result(res);

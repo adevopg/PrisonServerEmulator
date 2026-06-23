@@ -435,18 +435,24 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         }
 
         // AVAILABLESERVERS (0x13ac): por prisión [id:4][nChars:1][texto UTF-16].
-        // OJO: el cliente NO usa nChars como reclusos; calcula los reclusos
-        // SUMANDO el valor de cada carácter UTF-16 del texto (rutina 0x48a432:
-        // add ecx, char). Por eso, con espacios (0x20) salía población*32=1344.
-        // Para que los reclusos = población, enviamos 'población' caracteres de
-        // valor 1: la suma da exactamente población (y nChars=población también
-        // cuadra con el contador animado).
+        // El cliente usa DOS valores independientes de este texto:
+        //   - nChars (nº de caracteres)        -> nº de MÓDULOS de celdas
+        //   - SUMA del valor de los caracteres -> nº de RECLUSOS (población)
+        // (rutina 0x48a432: add ecx, char). Por eso ponemos nChars = módulos y
+        // repartimos la población entre esos caracteres (su suma = reclusos).
         {
             static uint8_t data[256 * (5 + 2 * 255)]; int di = 0;
             for (const auto& s : servidores) {
-                uint8_t pop = (uint8_t)(s.poblacion > 255 ? 255 : s.poblacion);
-                escribir32(data + di, s.id); di += 4; data[di++] = pop;        // nChars
-                for (int k = 0; k < pop; k++) { data[di++] = 1; data[di++] = 0; } // char=0x0001 -> suma += 1
+                uint8_t nMod = s.modulos == 0 ? 1 : s.modulos;   // nChars = nº de módulos
+                uint32_t recl = s.poblacion;                     // se reparte en la suma
+                escribir32(data + di, s.id); di += 4; data[di++] = nMod;
+                for (int k = 0; k < nMod; k++) {
+                    // Repartir los reclusos entre los caracteres (cada uno cabe 0..0xffff).
+                    uint16_t v = 0;
+                    if (recl > 0) { v = recl > 0xffff ? 0xffff : (uint16_t)recl; recl -= v; }
+                    data[di++] = (uint8_t)(v & 0xff);
+                    data[di++] = (uint8_t)(v >> 8);
+                }
             }
             static uint8_t sv[8 + sizeof(data)]; int si = 0;
             escribir16(sv, op::AVAILABLESERVERS); si = 2;

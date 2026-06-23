@@ -63,7 +63,8 @@ struct ServidorJuego {
     std::string nombre2;         // segundo texto (el cliente muestra "nombre nombre2")
     uint8_t     flag      = 2;   // byte que el cliente guarda en el nodo (por defecto 2)
     uint32_t    extra     = 0;   // dword extra que el cliente guarda en el nodo
-    uint32_t    poblacion = 0;   // "reclusos" conectados
+    uint32_t    poblacion = 0;   // "reclusos" conectados (= suma de los caracteres)
+    uint8_t     modulos   = 4;   // nº de módulos de celdas (= nº de caracteres)
 };
 
 class BaseDatos {
