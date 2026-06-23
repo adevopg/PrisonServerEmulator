@@ -1,0 +1,28 @@
+# ---- Compilación ----
+build/
+bin/
+*.exe
+*.obj
+*.dll
+*.lib
+*.pdb
+*.ilk
+
+# ---- Logs y volcados ----
+*.log
+*.dmp
+dumps/
+
+# ---- Python (scripts de análisis) ----
+__pycache__/
+*.pyc
+
+# ---- Capturas/imágenes de la ingeniería inversa (muy pesadas) ----
+analysis/*.png
+capture.log
+
+# ---- Servidor antiguo (referencia local, no se sube) ----
+legacy/
+
+# ---- Configuración local de Claude Code ----
+.claude/
