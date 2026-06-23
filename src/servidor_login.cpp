@@ -402,14 +402,19 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
         }
 
-        // AVAILABLESERVERS (0x13ac): por prisión [id:4][poblacion:1][relleno UTF-16].
-        // El byte de población es el número de "reclusos" que muestra el cliente.
+        // AVAILABLESERVERS (0x13ac): por prisión [id:4][nChars:1][texto UTF-16].
+        // OJO: el cliente NO usa nChars como reclusos; calcula los reclusos
+        // SUMANDO el valor de cada carácter UTF-16 del texto (rutina 0x48a432:
+        // add ecx, char). Por eso, con espacios (0x20) salía población*32=1344.
+        // Para que los reclusos = población, enviamos 'población' caracteres de
+        // valor 1: la suma da exactamente población (y nChars=población también
+        // cuadra con el contador animado).
         {
             static uint8_t data[256 * (5 + 2 * 255)]; int di = 0;
             for (const auto& s : servidores) {
                 uint8_t pop = (uint8_t)(s.poblacion > 255 ? 255 : s.poblacion);
-                escribir32(data + di, s.id); di += 4; data[di++] = pop;
-                for (int k = 0; k < pop; k++) { data[di++] = ' '; data[di++] = 0; } // relleno (ignorado)
+                escribir32(data + di, s.id); di += 4; data[di++] = pop;        // nChars
+                for (int k = 0; k < pop; k++) { data[di++] = 1; data[di++] = 0; } // char=0x0001 -> suma += 1
             }
             static uint8_t sv[8 + sizeof(data)]; int si = 0;
             escribir16(sv, op::AVAILABLESERVERS); si = 2;
