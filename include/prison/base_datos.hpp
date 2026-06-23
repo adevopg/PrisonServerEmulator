@@ -44,11 +44,17 @@ struct Cuenta {
     uint32_t    suscripcionHasta = 0; // epoch de fin de suscripción (0 = ilimitada)
 };
 
-// Un servidor de mundo de la lista de selección.
+// Una "prisión" (servidor de mundo) de la lista de selección. Los campos son
+// EXACTAMENTE los que el cliente lee en SERVERADDED (0x13a9) y AVAILABLESERVERS
+// (0x13ac): id, flag, extra, nombre, nombre2 (se muestra "nombre nombre2") y la
+// población ("reclusos").
 struct ServidorJuego {
-    uint32_t    id         = 0;
-    std::string nombre;
-    uint32_t    poblacion  = 0; // "reclusos" conectados
+    uint32_t    id        = 0;   // id de la prisión
+    std::string nombre;          // nombre mostrado
+    std::string nombre2;         // segundo texto (el cliente muestra "nombre nombre2")
+    uint8_t     flag      = 2;   // byte que el cliente guarda en el nodo (por defecto 2)
+    uint32_t    extra     = 0;   // dword extra que el cliente guarda en el nodo
+    uint32_t    poblacion = 0;   // "reclusos" conectados
 };
 
 class BaseDatos {
@@ -68,8 +74,8 @@ public:
     // Busca una cuenta por su nombre de usuario.
     Cuenta buscarCuenta(const std::string& usuario);
 
-    // Devuelve los servidores de mundo en línea (máximo "limite").
-    std::vector<ServidorJuego> listarServidores(int limite = 2);
+    // Devuelve TODAS las prisiones/servidores en línea (ordenadas por sort_order).
+    std::vector<ServidorJuego> listarServidores();
 
 private:
     MYSQL* mysql_ = nullptr;

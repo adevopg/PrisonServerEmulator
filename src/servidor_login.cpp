@@ -377,57 +377,51 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             registro::log("   -> 0x13c2 CLASSINFO (N0=%d '%s')", N0, NM);
         }
 
-        // --- Servidores de mundo desde MySQL (mínimo 2 para que la lista no auto-avance) ---
-        uint32_t srvIds[2] = {1, 2};
-        char     srvNombre[2][128] = {"La Prision - Local", "La Prision II"};
-        uint8_t  srvReclu[2] = {0, 0};
-        {
-            auto servidores = bd_.listarServidores(2);
-            for (size_t e = 0; e < servidores.size() && e < 2; e++) {
-                srvIds[e] = servidores[e].id;
-                strncpy(srvNombre[e], servidores[e].nombre.c_str(), 127);
-                srvNombre[e][127] = 0;
-                uint32_t pop = servidores[e].poblacion;
-                srvReclu[e] = (uint8_t)(pop > 255 ? 255 : pop);
-            }
-        }
+        // --- Lista de prisiones: TODO viene de MySQL (tabla game_servers) ---
+        // El cliente admite hasta 255 prisiones; limitamos por seguridad del buffer.
+        std::vector<ServidorJuego> servidores = bd_.listarServidores();
+        if (servidores.size() > 255) servidores.resize(255);
+        registro::log("   prisiones en línea (MySQL) = %zu", servidores.size());
 
-        // SERVERADDED (0x13a9): crea el nodo de cada prisión con su nombre mostrado.
+        // SERVERADDED (0x13a9): un nodo por prisión. Por cada una el cliente lee
+        //   [id:4][flag:1][extra:4][nombre\0][nombre2\0]  y muestra "nombre nombre2".
         {
-            uint8_t sv[400]; int si = 0;
+            uint8_t sv[4096]; int si = 0;
             escribir16(sv, op::SERVERADDED); si = 2;
-            escribir16(sv + si, 2); si += 2;             // count = 2
-            for (int e = 0; e < 2; e++) {
-                escribir32(sv + si, srvIds[e]); si += 4; // id
-                sv[si++] = 2;                            // flag
-                escribir32(sv + si, 0); si += 4;         // dword -> node+8
-                int pl = (int)strlen(srvNombre[e]); memcpy(sv + si, srvNombre[e], pl); si += pl; sv[si++] = 0; // nombre
-                sv[si++] = 0;                            // str2 (vacío)
+            escribir16(sv + si, static_cast<uint16_t>(servidores.size())); si += 2; // count (word)
+            for (const auto& s : servidores) {
+                escribir32(sv + si, s.id); si += 4;
+                sv[si++] = s.flag;
+                escribir32(sv + si, s.extra); si += 4;
+                int n1 = (int)s.nombre.size();  memcpy(sv + si, s.nombre.c_str(),  n1); si += n1; sv[si++] = 0;
+                int n2 = (int)s.nombre2.size(); memcpy(sv + si, s.nombre2.c_str(), n2); si += n2; sv[si++] = 0;
             }
-            uint8_t m[460];
+            uint8_t m[4200];
             int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
             enviarFiable(con, remoto, m, ml);
-            registro::log("   -> 0x13a9 SERVERADDED x2 ('%s','%s')", srvNombre[0], srvNombre[1]);
+            registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
         }
 
-        // AVAILABLESERVERS (0x13ac): el byte de LONGITUD por entrada ES el número
-        // de "reclusos" mostrado. Su "nombre" UTF-16 de esa longitud es relleno.
+        // AVAILABLESERVERS (0x13ac): por prisión [id:4][poblacion:1][relleno UTF-16].
+        // El byte de población es el número de "reclusos" que muestra el cliente.
         {
-            uint8_t data[2 * (5 + 2 * 255)]; int di = 0;
-            for (int e = 0; e < 2; e++) {
-                uint8_t cuenta = srvReclu[e];
-                escribir32(data + di, srvIds[e]); di += 4; data[di++] = cuenta;
-                for (int k = 0; k < cuenta; k++) { data[di++] = ' '; data[di++] = 0; } // relleno UTF-16
+            static uint8_t data[256 * (5 + 2 * 255)]; int di = 0;
+            for (const auto& s : servidores) {
+                uint8_t pop = (uint8_t)(s.poblacion > 255 ? 255 : s.poblacion);
+                escribir32(data + di, s.id); di += 4; data[di++] = pop;
+                for (int k = 0; k < pop; k++) { data[di++] = ' '; data[di++] = 0; } // relleno (ignorado)
             }
-            uint8_t sv[8 + sizeof(data)]; int si = 0;
-            escribir16(sv, op::AVAILABLESERVERS); si = 2; sv[si++] = 2; escribir32(sv + si, (uint32_t)di); si += 4;
+            static uint8_t sv[8 + sizeof(data)]; int si = 0;
+            escribir16(sv, op::AVAILABLESERVERS); si = 2;
+            sv[si++] = static_cast<uint8_t>(servidores.size());   // count (byte)
+            escribir32(sv + si, (uint32_t)di); si += 4;
             memcpy(sv + si, data, di); si += di;
-            uint8_t smsg[24 + sizeof(sv)];
+            uint8_t smsg[16 + sizeof(sv)];
             int smlen = pr::componerMensajeApp(smsg, con.idConexion, sv, si);
             enviarFiable(con, remoto, smsg, smlen);
-            registro::log("   -> 0x13ac AVAILABLESERVERS reclusos=[%u,%u]", srvReclu[0], srvReclu[1]);
+            registro::log("   -> 0x13ac AVAILABLESERVERS x%zu", servidores.size());
         }
-        registro::log("   -> 0x13d5(aceptar)+0x13ac(servidores)");
+        registro::log("   -> 0x13d5(aceptar)+0x13a9(prisiones)+0x13ac(reclusos)");
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
     // Tras esto el cliente se desconecta del login y se conecta al ServidorMundo.

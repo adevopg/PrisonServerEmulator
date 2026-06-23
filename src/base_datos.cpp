@@ -84,15 +84,14 @@ Cuenta BaseDatos::buscarCuenta(const std::string& usuario) {
     return resultado;
 }
 
-std::vector<ServidorJuego> BaseDatos::listarServidores(int limite) {
+std::vector<ServidorJuego> BaseDatos::listarServidores() {
     std::vector<ServidorJuego> servidores;
     if (!mysql_) return servidores;
 
-    char consulta[256];
-    snprintf(consulta, sizeof consulta,
-             "SELECT id, name, population FROM game_servers "
-             "WHERE online=1 ORDER BY sort_order LIMIT %d",
-             limite);
+    // Todos los campos que el cliente necesita por prisión.
+    const char* consulta =
+        "SELECT id, name, name2, flag, extra, population FROM game_servers "
+        "WHERE online=1 ORDER BY sort_order";
 
     if (mysql_query(mysql_, consulta) != 0) return servidores;
 
@@ -103,7 +102,10 @@ std::vector<ServidorJuego> BaseDatos::listarServidores(int limite) {
             ServidorJuego s;
             s.id        = static_cast<uint32_t>(strtoul(fila[0], nullptr, 10));
             s.nombre    = fila[1] ? fila[1] : "";
-            s.poblacion = fila[2] ? static_cast<uint32_t>(strtoul(fila[2], nullptr, 10)) : 0;
+            s.nombre2   = fila[2] ? fila[2] : "";
+            s.flag      = fila[3] ? static_cast<uint8_t>(strtoul(fila[3], nullptr, 10)) : 2;
+            s.extra     = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 0;
+            s.poblacion = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 0;
             servidores.push_back(std::move(s));
         }
         mysql_free_result(res);
