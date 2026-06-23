@@ -386,7 +386,15 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // ingeniería inversa del handler 0x4a4620. Necesario para el preview de
         // selección de prisión (evita null-deref en 0x561b10).
         if (cfg().classInfo) {
-            const int N0 = 32, N1 = 10, N2 = 0; const char* NM = "Recluso";
+            // Los 10 DELITOS reales de "La Prisión" (clases que el jugador elige
+            // al crear personaje). El orden = índice de clase (char +0x40).
+            static const char* DELITOS[] = {
+                "Mercenario", "Asesino en serie", "Asesino a sueldo", "Hacker",
+                "Politico corrupto", "Timador", "Ladron", "Narcotraficante",
+                "Atracador", "Mafioso"
+            };
+            const int N0 = (int)(sizeof(DELITOS) / sizeof(DELITOS[0])); // 10 delitos
+            const int N1 = 10, N2 = 0;                                  // N1 atributos (genéricos)
             uint8_t blob[8192]; int bl = 0;
             auto putStr = [&](const char* s) {
                 int L = (int)strlen(s);
@@ -397,8 +405,8 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             char an[16];
             for (int i = 0; i < N1; i++) { snprintf(an, sizeof an, "Atrib%d", i); putStr(an); }
             for (int c = 0; c < N0; c++) {
-                putStr(NM);                       // -> entry+4 (nombre mostrado)
-                putStr(NM);                       // -> entry+0 (nombre alterno)
+                putStr(DELITOS[c]);               // -> entry+4 (nombre mostrado del delito)
+                putStr(DELITOS[c]);               // -> entry+0 (nombre alterno)
                 putStr("");                       // -> entry+8 (vacío)
                 memset(blob + bl, 0, 20); bl += 20;
                 for (int a = 0; a < N1; a++) { blob[bl++] = 50; blob[bl++] = 50; } // valores de atributo
@@ -414,7 +422,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t m[4600];
             int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
             enviarFiable(con, remoto, m, ml);
-            registro::log("   -> 0x13c2 CLASSINFO (N0=%d '%s')", N0, NM);
+            registro::log("   -> 0x13c2 CLASSINFO (%d delitos)", N0);
         }
 
         // --- Lista de prisiones: TODO viene de MySQL (tabla game_servers) ---
