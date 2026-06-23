@@ -119,6 +119,9 @@ public:
     // "Reclusos" de una prisión = nº de personajes (no borrados) creados en ella.
     int contarReclusos(uint32_t idServidor);
 
+    // ¿Ya existe un personaje con ese nick? (el nick es único en todo el servidor)
+    bool existeNick(const std::string& nick);
+
     // Carga TODOS los personajes (no borrados) de la cuenta, con su prisión
     // (server_id). El cliente recibe todos una vez y muestra los de la prisión
     // elegida filtrando por ese id; por eso aquí no se filtra por prisión.

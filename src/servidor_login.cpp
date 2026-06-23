@@ -312,10 +312,18 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             nick[i] = datosCrear[i];
         if (!nick[0]) strcpy(nick, "Recluso");
 
-        // Volcamos el paquete completo para poder mapear cada campo (nick, sexo,
-        // clase, atributos, aspecto) a su columna. (Quitar cuando esté mapeado.)
         registro::log("   *** CREAR PERSONAJE nick='%s' (datos=%d bytes) ***", nick, longCrear);
         registro::volcadoHex("   0x1394 CREATE payload:", datosCrear, longCrear);
+
+        // ¿El nick ya existe? -> CHARERROR: el cliente muestra "El nick ya existe,
+        // elige otro" y NO se crea el personaje.
+        if (bd_.existeNick(nick)) {
+            uint8_t a[2]; escribir16(a, op::CHARERROR);
+            uint8_t m[64]; int ml = pr::componerMensajeApp(m, con.idConexion, a, 2);
+            enviarFiable(con, remoto, m, ml);
+            registro::log("   *** nick '%s' YA EXISTE -> CHARERROR (0x1398) ***", nick);
+            return;
+        }
 
         // Guardar en la base de datos (de momento: nick + bloque crudo completo).
         // El personaje pertenece a la prisión seleccionada por la cuenta.

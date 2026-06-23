@@ -50,6 +50,7 @@ enum OpcodeServidor : uint16_t {
     CUENTA               = 0x1389, // estructura de la cuenta + personajes (fragmentada)
     LOGINRECHAZADO       = 0x138a, // LOGINREJECTED: rechaza el login, payload [codigo:1] (+timestamp si codigo=7)
     CHARCREATED          = 0x1395, // confirma que el personaje se creó
+    CHARERROR            = 0x1398, // error al crear (p.ej. "El nick ya existe, elige otro")
     SERVERADDED          = 0x13a9, // añade una "prisión" (servidor) a la lista, con su nombre
     AVAILABLESERVERS     = 0x13ac, // lista de servidores disponibles (nº de "reclusos")
     CLASSINFO            = 0x13c2, // tabla de clases (para la pantalla de selección)

@@ -226,6 +226,16 @@ int BaseDatos::contarReclusos(uint32_t idServidor) {
     return contarFilas(mysql_, consulta);
 }
 
+bool BaseDatos::existeNick(const std::string& nick) {
+    if (!mysql_) return false;
+    char esc[128];
+    mysql_real_escape_string(mysql_, esc, nick.c_str(), static_cast<unsigned long>(nick.size()));
+    char consulta[256];
+    snprintf(consulta, sizeof consulta,
+             "SELECT COUNT(*) FROM characters WHERE nick='%s'", esc);
+    return contarFilas(mysql_, consulta) > 0;
+}
+
 std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     std::vector<Personaje> personajes;
     if (!mysql_) return personajes;
