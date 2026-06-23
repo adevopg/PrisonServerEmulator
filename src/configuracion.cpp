@@ -31,6 +31,10 @@ static long entero(const char* nombre, long porDefecto) {
 static Configuracion cargar() {
     Configuracion c;
 
+    // Grupo 0: login y cuentas.
+    c.mantenimiento    = definida("MANTENIMIENTO");
+    c.exigirContrasena = definida("EXIGIR_PASSWORD");
+
     // Grupo 1: interruptores de entrada al juego.
     c.spawn     = definida("SPAWN");
     c.room      = definida("ROOM");

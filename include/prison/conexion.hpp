@@ -19,6 +19,8 @@
 #include <cstdint>
 #include <string>
 
+#include "prison/base_datos.hpp"  // struct Cuenta
+
 namespace prison {
 
 // Fase del "handshake" (saludo inicial) de una conexión SNS.
@@ -44,6 +46,7 @@ struct Conexion {
     bool enviadoEntrar  = false; // ¿ya enviamos ENTERINGGAMEACCEPTED?
 
     uint32_t idCuenta   = 0;     // id de la cuenta en MySQL (0 si no se encontró)
+    Cuenta   cuenta;             // datos de la cuenta (para validar en el LOGIN)
 };
 
 } // namespace prison

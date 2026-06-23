@@ -18,6 +18,7 @@
 #include <windows.h>   // Sleep
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 
 namespace prison {
@@ -80,8 +81,10 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         if (cfg().tieneStartFieldc)
             c.idMensajeTx = static_cast<uint32_t>(cfg().startFieldc - 1);
 
-        // Autenticar contra MySQL.
+        // Buscar la cuenta en MySQL (la validación de contraseña/estado se hace
+        // luego, en el LOGIN, porque la contraseña llega en ese mensaje).
         Cuenta cuenta = bd_.buscarCuenta(usuario);
+        c.cuenta = cuenta;
         c.idCuenta = cuenta.id;
         registro::log("   MySQL: usuario='%s' -> %s idCuenta=%u",
                       usuario.c_str(), cuenta.encontrada ? "ENCONTRADA" : "NO ENCONTRADA", c.idCuenta);
@@ -184,8 +187,35 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // (El cliente hace `dec` en su dispatch, por eso el handler 0x40a59e es 0x1389.)
     if (opcode == op::LOGIN && !con.enviadoLogin) {
         con.enviadoLogin = true;
-        registro::log("   *** LOGIN '%s' (%s) -> cuenta 0x1389 (fragmentada) ***",
-                      con.usuario.c_str(), con.idCuenta ? "ENCONTRADA" : "DESCONOCIDA");
+
+        // --- Extraer el hash de la contraseña que envía el cliente ---
+        // El mensaje LOGIN trae tras el opcode: [u16 ?][u16 longitud][hash...].
+        //   pay+0x16 = campo previo, pay+0x18 = longitud, pay+0x1a = hash.
+        std::string hashRecibido;
+        if (plen >= 0x1a) {
+            int longHash = leer16(pay + 0x18);
+            if (longHash > 0 && 0x1a + longHash <= plen) {
+                static const char* HEX = "0123456789abcdef";
+                for (int i = 0; i < longHash; i++) {
+                    uint8_t b = pay[0x1a + i];
+                    hashRecibido += HEX[b >> 4];
+                    hashRecibido += HEX[b & 0xf];
+                }
+            }
+        }
+        registro::log("   LOGIN hash recibido=%s", hashRecibido.empty() ? "(ninguno)" : hashRecibido.c_str());
+
+        // --- Comprobar el estado de la cuenta (contraseña, ban, tiempo, etc.) ---
+        EstadoCuenta estado = evaluarEstado(con, hashRecibido, clave);
+        if (estado != EstadoCuenta::Ok) {
+            registro::log("   *** LOGIN RECHAZADO '%s' -> %s (codigo %u) ***",
+                          con.usuario.c_str(), nombreEstado(estado), estadoARechazo(estado));
+            enviarRechazo(con, remoto, estado);
+            return;
+        }
+
+        registro::log("   *** LOGIN '%s' OK -> cuenta 0x1389 (fragmentada) ***",
+                      con.usuario.c_str());
 
         static uint8_t app[2 + 0x9cd];
         memset(app, 0, sizeof app);
@@ -412,6 +442,95 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFiable(con, remoto, m, ml);
         registro::log("   *** SELECT (0x139f) -> 0x13f2 ENTERINGGAMEACCEPTED (pj 0) ***");
     }
+}
+
+// ----------------------------------------------------------------------------
+//  ¿Hay otra conexión activa con la misma cuenta? (sesión duplicada)
+// ----------------------------------------------------------------------------
+bool ServidorLogin::cuentaYaConectada(uint32_t idCuenta, uint64_t claveActual) {
+    if (idCuenta == 0) return false; // sin id no comprobamos
+    for (auto& par : conexiones_) {
+        if (par.first == claveActual) continue;         // saltar la conexión actual
+        const Conexion& otra = par.second;
+        if (otra.idCuenta == idCuenta && otra.enviadoLogin)
+            return true; // otra conexión ya hizo login con esta cuenta
+    }
+    return false;
+}
+
+// ----------------------------------------------------------------------------
+//  Comprueba el estado de la cuenta. Devuelve EstadoCuenta::Ok si puede entrar.
+//  El ORDEN de las comprobaciones decide qué motivo de rechazo gana.
+// ----------------------------------------------------------------------------
+EstadoCuenta ServidorLogin::evaluarEstado(const Conexion& con,
+                                          const std::string& hashRecibidoHex,
+                                          uint64_t claveActual) {
+    const Cuenta& c = con.cuenta;
+    uint32_t ahora = static_cast<uint32_t>(time(nullptr));
+
+    // 1) Mantenimiento: rechaza a todos menos a los GameMasters.
+    if (cfg().mantenimiento && c.nivelGm == 0)
+        return EstadoCuenta::EnMantenimiento;
+
+    // 2) ¿Existe la cuenta?
+    if (!c.encontrada)
+        return EstadoCuenta::NoExiste;
+
+    // 3) Ban permanente.
+    if (c.baneada)
+        return EstadoCuenta::Baneada;
+
+    // 4) Ban temporal (hasta una fecha futura).
+    if (c.baneadaHasta != 0 && c.baneadaHasta > ahora)
+        return EstadoCuenta::BaneadaTemporal;
+
+    // 5) Contraseña.
+    if (!c.hashContrasena.empty()) {
+        // Comparación sin distinguir mayúsculas/minúsculas (es hex).
+        if (_stricmp(hashRecibidoHex.c_str(), c.hashContrasena.c_str()) != 0)
+            return EstadoCuenta::ContrasenaIncorrecta;
+    } else {
+        // No hay hash guardado: o exigimos contraseña, o dejamos pasar (y ya se
+        // registró el hash recibido para poder guardarlo en la base de datos).
+        if (cfg().exigirContrasena)
+            return EstadoCuenta::ContrasenaIncorrecta;
+        registro::log("   (cuenta sin password_hash: login permitido; copia el hash a la BD para exigirlo)");
+    }
+
+    // 6) Tiempo de juego / suscripción caducada.
+    if (c.suscripcionHasta != 0 && c.suscripcionHasta < ahora)
+        return EstadoCuenta::SinTiempoDeJuego;
+
+    // 7) Sesión duplicada.
+    if (cuentaYaConectada(c.id, claveActual))
+        return EstadoCuenta::YaConectada;
+
+    return EstadoCuenta::Ok;
+}
+
+// ----------------------------------------------------------------------------
+//  Envía LOGINREJECTED (opcode 0x138a) con el código del estado.
+//  El código 7 (ban temporal) lleva además el timestamp de fin del ban.
+// ----------------------------------------------------------------------------
+void ServidorLogin::enviarRechazo(Conexion& con, const udp::endpoint& remoto,
+                                  EstadoCuenta estado) {
+    uint8_t codigo = estadoARechazo(estado);
+
+    // appData = [opcode 0x138a][codigo:1] (+[timestamp:4] si es ban temporal).
+    uint8_t a[2 + 1 + 4];
+    escribir16(a, op::LOGINRECHAZADO);
+    a[2] = codigo;
+    int longApp = 2 + 1;
+
+    if (estado == EstadoCuenta::BaneadaTemporal) {
+        escribir32(a + 3, con.cuenta.baneadaHasta); // fecha de fin del ban
+        longApp = 2 + 1 + 4;
+    }
+
+    uint8_t m[64];
+    int ml = pr::componerMensajeApp(m, con.idConexion, a, longApp);
+    enviarFiable(con, remoto, m, ml);
+    registro::log("   -> 0x138a LOGINREJECTED codigo=%u (%s)", codigo, nombreEstado(estado));
 }
 
 } // namespace prison

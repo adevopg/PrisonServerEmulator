@@ -55,10 +55,14 @@ Cuenta BaseDatos::buscarCuenta(const std::string& usuario) {
     mysql_real_escape_string(mysql_, usuarioEscapado, usuario.c_str(),
                              static_cast<unsigned long>(usuario.size()));
 
-    char consulta[256];
+    // Pedimos las fechas como epoch (UNIX_TIMESTAMP) para compararlas fácil.
+    // Columnas: 0=id 1=password_hash 2=gm_level 3=banned 4=banned_until(epoch)
+    //           5=subscription_until(epoch)
+    char consulta[384];
     snprintf(consulta, sizeof consulta,
-             "SELECT id, password, gm_level, banned FROM accounts "
-             "WHERE username='%s' LIMIT 1",
+             "SELECT id, password_hash, gm_level, banned, "
+             "UNIX_TIMESTAMP(banned_until), UNIX_TIMESTAMP(subscription_until) "
+             "FROM accounts WHERE username='%s' LIMIT 1",
              usuarioEscapado);
 
     if (mysql_query(mysql_, consulta)) return resultado;
@@ -67,10 +71,13 @@ Cuenta BaseDatos::buscarCuenta(const std::string& usuario) {
     if (res) {
         MYSQL_ROW fila = mysql_fetch_row(res);
         if (fila) {
-            resultado.encontrada = true;
-            resultado.id      = static_cast<uint32_t>(strtoul(fila[0], nullptr, 10));
-            resultado.nivelGm = fila[2] ? static_cast<uint32_t>(strtoul(fila[2], nullptr, 10)) : 0;
-            resultado.baneada = fila[3] && strtoul(fila[3], nullptr, 10) != 0;
+            resultado.encontrada      = true;
+            resultado.id              = static_cast<uint32_t>(strtoul(fila[0], nullptr, 10));
+            resultado.hashContrasena  = fila[1] ? fila[1] : "";
+            resultado.nivelGm         = fila[2] ? static_cast<uint32_t>(strtoul(fila[2], nullptr, 10)) : 0;
+            resultado.baneada         = fila[3] && strtoul(fila[3], nullptr, 10) != 0;
+            resultado.baneadaHasta    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 0;
+            resultado.suscripcionHasta = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 0;
         }
         mysql_free_result(res);
     }

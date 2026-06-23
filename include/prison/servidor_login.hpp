@@ -24,6 +24,7 @@
 #include "prison/servidor_udp.hpp"
 #include "prison/conexion.hpp"
 #include "prison/base_datos.hpp"
+#include "prison/estados_cuenta.hpp"
 
 namespace prison {
 
@@ -41,6 +42,20 @@ private:
     void procesarDatos(uint8_t* datos, int n,
                        const boost::asio::ip::udp::endpoint& remoto,
                        uint16_t flags, uint16_t secuencia);
+
+    // Comprueba el estado de la cuenta al recibir el LOGIN.
+    //   con              = conexión (lleva los datos de la cuenta del SYN)
+    //   hashRecibidoHex  = hash de contraseña que envió el cliente (en hex)
+    //   claveActual      = clave (IP+puerto) de esta conexión (para sesión duplicada)
+    EstadoCuenta evaluarEstado(const Conexion& con, const std::string& hashRecibidoHex,
+                               uint64_t claveActual);
+
+    // ¿Hay ya otra conexión activa con esta misma cuenta? (sesión duplicada)
+    bool cuentaYaConectada(uint32_t idCuenta, uint64_t claveActual);
+
+    // Envía LOGINREJECTED (0x138a) con el código del estado (+timestamp si procede).
+    void enviarRechazo(Conexion& con, const boost::asio::ip::udp::endpoint& remoto,
+                       EstadoCuenta estado);
 
     BaseDatos& bd_;
 

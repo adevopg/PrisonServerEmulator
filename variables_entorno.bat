@@ -17,6 +17,21 @@ REM ============================================================================
 
 
 REM ============================================================================
+REM  GRUPO 0 — LOGIN Y CUENTAS
+REM ============================================================================
+
+REM  MANTENIMIENTO: si está activa, el servidor rechaza a todos los jugadores
+REM                 (los GameMaster SÍ pueden entrar). Mensaje "en mantenimiento".
+set MANTENIMIENTO=
+
+REM  EXIGIR_PASSWORD: si una cuenta NO tiene 'password_hash' guardado en la base
+REM                   de datos, normalmente se deja pasar (y se registra el hash
+REM                   en el log para que lo copies). Si activas esto, esas cuentas
+REM                   se RECHAZAN hasta que guardes su hash.
+set EXIGIR_PASSWORD=
+
+
+REM ============================================================================
 REM  GRUPO 1 — ENTRADA AL JUEGO (lo que hace funcionar el botón JUGAR)
 REM ============================================================================
 

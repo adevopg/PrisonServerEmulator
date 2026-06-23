@@ -26,6 +26,11 @@
 namespace prison {
 
 struct Configuracion {
+    // ---- GRUPO 0: login y cuentas ----
+    bool mantenimiento   = false; // MANTENIMIENTO   : servidor en mantenimiento (rechaza a los no-GM)
+    bool exigirContrasena = false; // EXIGIR_PASSWORD : si una cuenta no tiene hash guardado, rechazar
+                                   //                   (por defecto: dejar pasar y registrar el hash)
+
     // ---- GRUPO 1: entrada al juego (interruptores SÍ/NO) ----
     bool spawn      = false;  // SPAWN     : activa la aparición del jugador
     bool room       = false;  // ROOM      : envía config de sala/mapa/objetos

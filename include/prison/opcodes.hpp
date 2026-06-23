@@ -47,6 +47,7 @@ enum OpcodeCliente : uint16_t {
 // ===========================================================================
 enum OpcodeServidor : uint16_t {
     CUENTA               = 0x1389, // estructura de la cuenta + personajes (fragmentada)
+    LOGINRECHAZADO       = 0x138a, // LOGINREJECTED: rechaza el login, payload [codigo:1] (+timestamp si codigo=7)
     CHARCREATED          = 0x1395, // confirma que el personaje se creó
     SERVERADDED          = 0x13a9, // añade una "prisión" (servidor) a la lista, con su nombre
     AVAILABLESERVERS     = 0x13ac, // lista de servidores disponibles (nº de "reclusos")

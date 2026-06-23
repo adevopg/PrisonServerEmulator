@@ -35,10 +35,13 @@ namespace prison {
 
 // Resultado de buscar una cuenta por nombre de usuario.
 struct Cuenta {
-    bool     encontrada = false;
-    uint32_t id         = 0;
-    uint32_t nivelGm    = 0;
-    bool     baneada    = false;
+    bool        encontrada = false;
+    uint32_t    id         = 0;
+    uint32_t    nivelGm    = 0;       // 0 = jugador normal, >0 = GameMaster
+    bool        baneada    = false;   // ban permanente (columna 'banned')
+    std::string hashContrasena;       // hash que esperamos del cliente (hex), vacío = no validar
+    uint32_t    baneadaHasta   = 0;   // epoch del ban temporal (0 = sin ban temporal)
+    uint32_t    suscripcionHasta = 0; // epoch de fin de suscripción (0 = ilimitada)
 };
 
 // Un servidor de mundo de la lista de selección.
