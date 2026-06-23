@@ -96,8 +96,9 @@ public:
     // "Reclusos" de una prisión = nº de personajes (no borrados) creados en ella.
     int contarReclusos(uint32_t idServidor);
 
-    // Carga los personajes (no borrados) de la cuenta, ordenados por ranura.
-    std::vector<Personaje> cargarPersonajes(uint32_t idCuenta);
+    // Carga los personajes (no borrados) de la cuenta EN UNA prisión concreta,
+    // ordenados por ranura. (Cada prisión tiene sus propios personajes.)
+    std::vector<Personaje> cargarPersonajes(uint32_t idCuenta, uint32_t idServidor);
 
     // Guarda un personaje nuevo en una prisión. "datos" es el bloque crudo de
     // aspecto/atributos del cliente (puede ser nullptr). Devuelve true si se insertó.

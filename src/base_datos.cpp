@@ -141,13 +141,14 @@ int BaseDatos::contarReclusos(uint32_t idServidor) {
     return contarFilas(mysql_, consulta);
 }
 
-std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
+std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta, uint32_t idServidor) {
     std::vector<Personaje> personajes;
     if (!mysql_) return personajes;
-    char consulta[200];
+    char consulta[220];
     snprintf(consulta, sizeof consulta,
              "SELECT slot, nick, sex, class, level FROM characters "
-             "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
+             "WHERE account_id=%u AND server_id=%u AND deleted=0 ORDER BY slot",
+             idCuenta, idServidor);
     if (mysql_query(mysql_, consulta)) return personajes;
     MYSQL_RES* res = mysql_store_result(mysql_);
     if (res) {

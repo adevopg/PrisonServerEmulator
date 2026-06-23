@@ -257,9 +257,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         }
 
         // La cuenta tiene 3 ranuras de personaje (0x9cd = 7 + 3*0x342). Cargamos
-        // los personajes REALES de MySQL. Si la cuenta tiene 0, el cliente muestra
-        // la pantalla de CREAR personaje (no la de selección).
-        std::vector<Personaje> personajes = bd_.cargarPersonajes(con.cuenta.id);
+        // los personajes REALES de MySQL de ESTA cuenta Y de ESTA prisión (cada
+        // prisión tiene los suyos). Si hay 0, el cliente muestra CREAR personaje.
+        std::vector<Personaje> personajes =
+            bd_.cargarPersonajes(con.cuenta.id, con.prisionSeleccionada);
         if (personajes.size() > 3) personajes.resize(3);
 
         static uint8_t app[2 + 0x9cd];
@@ -280,7 +281,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             escribir32(ch + 0x34, 1000);              // +0x34 pos X (evita div/0 en el render)
             escribir32(ch + 0x38, 1000);              // +0x38 pos Y
             escribir32(ch + 0x51, 0xFFFFFFFFu);       // +0x51 suprime el auto-enter 0x139f
-            escribir32(ch + 0x65, 1);                 // +0x65 id de prisión
+            escribir32(ch + 0x65, con.prisionSeleccionada); // +0x65 id de prisión
             ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
             ch[0x6a] = 0;                             // +0x6a estado
         }
@@ -307,8 +308,8 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         registro::volcadoHex("   0x1394 CREATE payload:", datosCrear, longCrear);
 
         // Guardar en la base de datos (de momento: nick + bloque crudo completo).
-        // El personaje pertenece a una prisión (server_id); por ahora la 1.
-        uint32_t idServidor = 1;
+        // El personaje pertenece a la prisión seleccionada por la cuenta.
+        uint32_t idServidor = con.prisionSeleccionada;
         int slot = 0;
         bool guardado = false;
         if (con.cuenta.id) {
