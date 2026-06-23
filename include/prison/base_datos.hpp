@@ -70,6 +70,10 @@ struct Personaje {
     uint32_t    nivel    = 1;
     uint32_t    servidor = 1;  // prisión a la que pertenece (va en +0x65 -> el cliente filtra)
     uint8_t     modulo   = 1;  // módulo de celdas en el que se creó (1..modules)
+    // Atributos repartidos en la creación, en el ORDEN del cliente:
+    //   [0]=Fuerza [1]=Destreza [2]=Agilidad [3]=Constitucion [4]=Inteligencia [5]=Carisma
+    // El cliente los muestra en la lista leyendo words en el slot +0x41,+0x43,...,+0x4b.
+    uint16_t    atributos[6] = {0,0,0,0,0,0};
     std::vector<uint8_t> datos; // bloque crudo de creación (appearance) para reconstruir el slot
 };
 

@@ -259,8 +259,9 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     if (!mysql_) return personajes;
     char consulta[220];
     snprintf(consulta, sizeof consulta,
-             "SELECT slot, nick, sex, class, level, server_id, module, appearance FROM characters "
-             "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
+             "SELECT slot, nick, sex, class, level, server_id, module, "
+             "fuerza, destreza, agilidad, constitucion, inteligencia, carisma, appearance "
+             "FROM characters WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
     if (mysql_query(mysql_, consulta)) return personajes;
     MYSQL_RES* res = mysql_store_result(mysql_);
     if (res) {
@@ -274,10 +275,17 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
             p.nivel    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
             p.servidor = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 1;
             p.modulo   = fila[6] ? static_cast<uint8_t>(strtoul(fila[6], nullptr, 10)) : 1;
+            for (int i = 0; i < 6; i++)
+                p.atributos[i] = fila[7+i] ? (uint16_t)strtoul(fila[7+i], nullptr, 10) : 0;
             // appearance es binario (puede tener nulls): usar la longitud real.
             unsigned long* lens = mysql_fetch_lengths(res);
-            if (fila[7] && lens && lens[7] > 0)
-                p.datos.assign(fila[7], fila[7] + lens[7]);
+            if (fila[13] && lens && lens[13] > 0)
+                p.datos.assign(fila[13], fila[13] + lens[13]);
+            // Fallback: personaje antiguo sin columnas -> sacar los atributos del blob (off 0x32).
+            bool vacios = true; for (int i = 0; i < 6; i++) if (p.atributos[i]) vacios = false;
+            if (vacios && p.datos.size() >= 0x3e)
+                for (int i = 0; i < 6; i++)
+                    p.atributos[i] = p.datos[0x32 + i*2] | (uint16_t(p.datos[0x33 + i*2]) << 8);
             personajes.push_back(std::move(p));
         }
         mysql_free_result(res);
@@ -304,9 +312,21 @@ bool BaseDatos::crearPersonaje(uint32_t idCuenta, uint32_t idServidor, uint8_t m
         blobEsc.assign(tmp.data(), m);
     }
 
-    std::string q = "INSERT INTO characters (account_id, server_id, module, slot, nick, appearance) VALUES (";
+    // Los 6 atributos repartidos viajan en el mensaje de creación como words
+    // little-endian a partir del offset 0x32 (Fuerza, Destreza, Agilidad,
+    // Constitucion, Inteligencia, Carisma). Los extraemos para guardarlos en
+    // columnas propias (además de quedar dentro del blob 'appearance').
+    unsigned atr[6] = {0,0,0,0,0,0};
+    if (datos && longitudDatos >= 0x3e) {
+        for (int i = 0; i < 6; i++)
+            atr[i] = datos[0x32 + i*2] | (unsigned(datos[0x33 + i*2]) << 8);
+    }
+
+    std::string q = "INSERT INTO characters (account_id, server_id, module, slot, nick, "
+                    "fuerza, destreza, agilidad, constitucion, inteligencia, carisma, appearance) VALUES (";
     q += std::to_string(idCuenta) + ", " + std::to_string(idServidor) + ", " +
          std::to_string((unsigned)modulo) + ", " + std::to_string(slot) + ", '" + nickEsc + "', ";
+    for (int i = 0; i < 6; i++) q += std::to_string(atr[i]) + ", ";
     q += blobEsc.empty() ? "NULL)" : ("'" + blobEsc + "')");
 
     return mysql_query(mysql_, q.c_str()) == 0;

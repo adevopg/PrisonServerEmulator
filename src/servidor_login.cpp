@@ -317,6 +317,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             escribir32(ch + 0x65, p.servidor);        // +0x65 prisión (el cliente filtra por aquí)
             ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
             ch[0x6a] = 0;                             // +0x6a estado
+            // Atributos repartidos: el cliente los muestra en la lista leyendo
+            // words en +0x41,+0x43,...,+0x4b (Fuerza..Carisma).
+            for (int a = 0; a < 6; a++)
+                escribir16(ch + 0x41 + a*2, p.atributos[a]);
         }
 
         registro::log("   *** LOGIN '%s' OK -> %zu personaje(s) (cuenta 0x1389) ***",
@@ -377,6 +381,12 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         escribir32(nch + 0x65, 1);                // +0x65 id de prisión 1
         nch[0x69] = 0;                            // +0x69 nivel (se muestra +1)
         nch[0x6a] = 0;                            // +0x6a estado
+        // Atributos repartidos (del propio mensaje de creación, offset 0x32) para
+        // que se vean ya en la lista sin tener que reconectar (+0x41..+0x4b).
+        if (longCrear >= 0x3e)
+            for (int a = 0; a < 6; a++)
+                escribir16(nch + 0x41 + a*2,
+                           datosCrear[0x32 + a*2] | (uint16_t(datosCrear[0x33 + a*2]) << 8));
         enviarFragmentado(con, remoto, cca, 2 + 1 + 0x342);
         registro::log("   -> CHARCREATED (0x1395) ranura=%d", slot);
         (void)guardado;
