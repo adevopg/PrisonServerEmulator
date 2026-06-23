@@ -58,11 +58,12 @@ Cuenta BaseDatos::buscarCuenta(const std::string& usuario) {
 
     // Pedimos las fechas como epoch (UNIX_TIMESTAMP) para compararlas fácil.
     // Columnas: 0=id 1=password_hash 2=gm_level 3=banned 4=banned_until(epoch)
-    //           5=subscription_until(epoch)
-    char consulta[384];
+    //           5=subscription_until(epoch) 6=created_at(epoch)
+    char consulta[420];
     snprintf(consulta, sizeof consulta,
              "SELECT id, password_hash, gm_level, banned, "
-             "UNIX_TIMESTAMP(banned_until), UNIX_TIMESTAMP(subscription_until) "
+             "UNIX_TIMESTAMP(banned_until), UNIX_TIMESTAMP(subscription_until), "
+             "UNIX_TIMESTAMP(created_at) "
              "FROM accounts WHERE username='%s' LIMIT 1",
              usuarioEscapado);
 
@@ -79,6 +80,7 @@ Cuenta BaseDatos::buscarCuenta(const std::string& usuario) {
             resultado.baneada         = fila[3] && strtoul(fila[3], nullptr, 10) != 0;
             resultado.baneadaHasta    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 0;
             resultado.suscripcionHasta = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 0;
+            resultado.creadaEpoch     = fila[6] ? static_cast<uint32_t>(strtoul(fila[6], nullptr, 10)) : 0;
         }
         mysql_free_result(res);
     }

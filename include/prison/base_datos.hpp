@@ -42,6 +42,7 @@ struct Cuenta {
     std::string hashContrasena;       // hash que esperamos del cliente (hex), vacío = no validar
     uint32_t    baneadaHasta   = 0;   // epoch del ban temporal (0 = sin ban temporal)
     uint32_t    suscripcionHasta = 0; // epoch de fin de suscripción (0 = ilimitada)
+    uint32_t    creadaEpoch    = 0;   // epoch de alta (created_at); activa 5 min después
 };
 
 // Un personaje guardado (para mostrarlo en la pantalla de selección).

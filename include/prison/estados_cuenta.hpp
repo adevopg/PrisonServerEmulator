@@ -46,6 +46,7 @@ enum class EstadoCuenta {
     SinTiempoDeJuego,       // sin tiempo / suscripción caducada
     EnMantenimiento,        // el servidor está en mantenimiento
     YaConectada,            // ya hay una sesión activa con esta cuenta
+    RecienCreada,           // creada hace < 5 min: aún no reconocida (espere)
 };
 
 // Códigos de rechazo de LOGINREJECTED (opcode 0x138a, payload[0]). Cada uno
@@ -76,6 +77,9 @@ inline uint8_t estadoARechazo(EstadoCuenta estado) {
         case EstadoCuenta::EnMantenimiento:      return rechazo::SERVIDOR_MANTEN;
         case EstadoCuenta::Baneada:              return rechazo::CUENTA_MANTEN;   // no hay msg "baneado"; "cuenta no accesible" es lo más cercano
         case EstadoCuenta::BaneadaTemporal:      return rechazo::BANEADA_HASTA;   // lleva timestamp
+        // Recién creada: el mensaje DATOS INCORRECTOS ya dice "si acaba de crear
+        // la cuenta, espere unos minutos".
+        case EstadoCuenta::RecienCreada:         return rechazo::DATOS_INCORRECTOS;
         default:                                 return rechazo::DATOS_INCORRECTOS;
     }
 }
@@ -91,6 +95,7 @@ inline const char* nombreEstado(EstadoCuenta estado) {
         case EstadoCuenta::SinTiempoDeJuego:     return "SIN TIEMPO DE JUEGO";
         case EstadoCuenta::EnMantenimiento:      return "EN MANTENIMIENTO";
         case EstadoCuenta::YaConectada:          return "YA CONECTADA";
+        case EstadoCuenta::RecienCreada:         return "RECIÉN CREADA (espera 5 min)";
         default:                                 return "?";
     }
 }

@@ -597,6 +597,12 @@ EstadoCuenta ServidorLogin::evaluarEstado(const Conexion& con,
     if (!c.encontrada)
         return EstadoCuenta::NoExiste;
 
+    // 2b) Activación diferida: la cuenta no se reconoce hasta 5 minutos después
+    //     de aparecer en la base de datos (created_at). (Los GM entran al instante.)
+    const uint32_t ACTIVACION_SEGUNDOS = 5 * 60;
+    if (c.nivelGm == 0 && c.creadaEpoch != 0 && ahora < c.creadaEpoch + ACTIVACION_SEGUNDOS)
+        return EstadoCuenta::RecienCreada;
+
     // 3) Ban permanente.
     if (c.baneada)
         return EstadoCuenta::Baneada;

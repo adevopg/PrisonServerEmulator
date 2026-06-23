@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   banned             TINYINT UNSIGNED NOT NULL DEFAULT 0,   -- 1 = baneada permanentemente
   banned_until       DATETIME NULL,                         -- ban temporal: baneada hasta esta fecha
   subscription_until DATETIME NULL,                         -- tiempo de juego: NULL = ilimitado
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- alta; activa 5 min después
   PRIMARY KEY (id),
   UNIQUE KEY uq_username (username)
 ) ENGINE=InnoDB;

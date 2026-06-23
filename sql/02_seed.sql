@@ -4,8 +4,9 @@ USE prison;
 -- password_hash = hash que envía el cliente para la contraseña Ladyamy89
 -- (capturado del cliente real). Si tu cliente envía otro, cópialo del log
 -- del servidor ("hash recibido=...") y actualízalo aquí.
-INSERT INTO accounts (username, password_hash, gm_level)
-VALUES ('innapmine', 'bed46e71a7d7697eb2ba4c71b3c3617dae823910d7', 5)
+-- created_at en el pasado para que la cuenta de ejemplo esté activa al instante.
+INSERT INTO accounts (username, password_hash, gm_level, created_at)
+VALUES ('innapmine', 'bed46e71a7d7697eb2ba4c71b3c3617dae823910d7', 5, '2000-01-01 00:00:00')
 ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), gm_level=VALUES(gm_level);
 
 -- Prisiones que aparecen en la lista de selección (todo viene de MySQL).
