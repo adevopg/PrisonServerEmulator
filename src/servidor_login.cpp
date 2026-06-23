@@ -385,56 +385,48 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // CLASSINFO (opcional, env CLASSINFO): tabla de clases, comprimida. Ver
         // ingeniería inversa del handler 0x4a4620. Necesario para el preview de
         // selección de prisión (evita null-deref en 0x561b10).
+        // CLASSINFO: los delitos (clases) y sus atributos/habilidades vienen de
+        // MySQL (tablas delitos/atributos/habilidades). Formato del cliente:
+        //   [N0][N1][N2] + N1 nombres attr + N2 nombres skill + por delito:
+        //   nombre_f, nombre_m, "", 20 bytes, N1 x (a0,a1), N2 x (h0..h3).
         if (cfg().classInfo) {
-            // Los 12 DELITOS reales de "La Prisión" (clases que el jugador elige
-            // al crear personaje). El orden = índice de clase (char +0x40).
-            // Cada uno tiene nombre MASCULINO y FEMENINO; el cliente muestra el
-            // que toca según el sexo del personaje.
-            struct Delito { const char* masculino; const char* femenino; };
-            static const Delito DELITOS[] = {
-                {"Mercenario",        "Mercenaria"},
-                {"Asesino en serie",  "Asesina en serie"},
-                {"Asesino a sueldo",  "Asesina a sueldo"},
-                {"Hacker",            "Hacker"},
-                {"Politico corrupto", "Politica corrupta"},
-                {"Timador",           "Timadora"},
-                {"Ladron",            "Ladrona"},
-                {"Narcotraficante",   "Narcotraficante"},
-                {"Atracador",         "Atracadora"},
-                {"Mafioso",           "Mafiosa"},
-                {"Canibal",           "Canibal"},
-                {"Pandillero",        "Pandillera"},
-            };
-            const int N0 = (int)(sizeof(DELITOS) / sizeof(DELITOS[0])); // 12 delitos
-            const int N1 = 10, N2 = 0;                                  // N1 atributos (genéricos)
-            uint8_t blob[8192]; int bl = 0;
-            auto putStr = [&](const char* s) {
-                int L = (int)strlen(s);
-                if (L == 0) { blob[bl++] = 0; }
-                else { blob[bl++] = (uint8_t)(L + 1); memcpy(blob + bl, s, L); bl += L; blob[bl++] = 0; }
-            };
-            blob[bl++] = (uint8_t)N0; blob[bl++] = (uint8_t)N1; blob[bl++] = (uint8_t)N2;
-            char an[16];
-            for (int i = 0; i < N1; i++) { snprintf(an, sizeof an, "Atrib%d", i); putStr(an); }
-            for (int c = 0; c < N0; c++) {
-                putStr(DELITOS[c].femenino);      // -> entry+4 (nombre, variante femenina)
-                putStr(DELITOS[c].masculino);     // -> entry+0 (nombre, variante masculina)
-                putStr("");                       // -> entry+8 (vacío)
-                memset(blob + bl, 0, 20); bl += 20;
-                for (int a = 0; a < N1; a++) { blob[bl++] = 50; blob[bl++] = 50; } // valores de atributo
+            InfoClases info = bd_.cargarClases();
+            int N0 = (int)info.delitos.size();
+            int N1 = (int)info.nombresAtributos.size();
+            int N2 = (int)info.nombresHabilidades.size();
+            if (N0 == 0 || N1 == 0) {
+                registro::log("   (CLASSINFO: sin delitos/atributos en MySQL; no se envía)");
+            } else {
+                static uint8_t blob[16384]; int bl = 0;
+                auto putStr = [&](const std::string& s) {
+                    int L = (int)s.size();
+                    if (L == 0) { blob[bl++] = 0; }
+                    else { blob[bl++] = (uint8_t)(L + 1); memcpy(blob + bl, s.data(), L); bl += L; blob[bl++] = 0; }
+                };
+                blob[bl++] = (uint8_t)N0; blob[bl++] = (uint8_t)N1; blob[bl++] = (uint8_t)N2;
+                for (const auto& s : info.nombresAtributos)   putStr(s);
+                for (const auto& s : info.nombresHabilidades) putStr(s);
+                for (const auto& d : info.delitos) {
+                    putStr(d.nombreF);                // -> entry+4 (femenino)
+                    putStr(d.nombreM);                // -> entry+0 (masculino)
+                    putStr(std::string());            // -> entry+8 (vacío)
+                    memset(blob + bl, 0, 20); bl += 20;
+                    for (const auto& a : d.atributos)   { blob[bl++] = a[0]; blob[bl++] = a[1]; }
+                    for (const auto& h : d.habilidades) { blob[bl++] = h[0]; blob[bl++] = h[1]; blob[bl++] = h[2]; blob[bl++] = h[3]; }
+                }
+                static uint8_t comp[16384];
+                int cl = cifrado::comprimirZlibStored(comp, blob, bl);
+                static uint8_t sv[16384]; int si = 0;
+                escribir16(sv, op::CLASSINFO); si = 2;
+                escribir32(sv + si, 0); si += 4;             // cabecera de 4 bytes (payload[0..3])
+                escribir32(sv + si, (uint32_t)bl); si += 4;  // tamaño sin comprimir (payload[4])
+                escribir32(sv + si, (uint32_t)cl); si += 4;  // tamaño comprimido   (payload[8])
+                memcpy(sv + si, comp, cl); si += cl;
+                static uint8_t m[16400];
+                int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   -> 0x13c2 CLASSINFO (%d delitos, %d atrib, %d habilidades, %dB)", N0, N1, N2, bl);
             }
-            uint8_t comp[8192];
-            int cl = cifrado::comprimirZlibStored(comp, blob, bl);
-            uint8_t sv[4400]; int si = 0;
-            escribir16(sv, op::CLASSINFO); si = 2;
-            escribir32(sv + si, 0); si += 4;             // cabecera de 4 bytes (payload[0..3])
-            escribir32(sv + si, (uint32_t)bl); si += 4;  // tamaño sin comprimir (payload[4])
-            escribir32(sv + si, (uint32_t)cl); si += 4;  // tamaño comprimido   (payload[8])
-            memcpy(sv + si, comp, cl); si += cl;
-            uint8_t m[4600];
-            int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
-            enviarFiable(con, remoto, m, ml);
-            registro::log("   -> 0x13c2 CLASSINFO (%d delitos)", N0);
         }
 
         // --- Lista de prisiones: TODO viene de MySQL (tabla game_servers) ---

@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <array>
 
 // Adelantamos el tipo de MySQL para no incluir <mysql.h> en la cabecera
 // (así quien use base_datos.hpp no necesita los headers de MySQL).
@@ -43,6 +44,21 @@ struct Cuenta {
     uint32_t    baneadaHasta   = 0;   // epoch del ban temporal (0 = sin ban temporal)
     uint32_t    suscripcionHasta = 0; // epoch de fin de suscripción (0 = ilimitada)
     uint32_t    creadaEpoch    = 0;   // epoch de alta (created_at); activa 5 min después
+};
+
+// Un delito (clase) con sus valores de atributos y habilidades para CLASSINFO.
+struct DelitoClase {
+    std::string nombreM;     // nombre masculino
+    std::string nombreF;     // nombre femenino
+    std::vector<std::array<uint8_t, 2>> atributos;   // por atributo: (a0, a1)  (tamaño N1)
+    std::vector<std::array<uint8_t, 4>> habilidades; // por habilidad: (h0..h3) (tamaño N2; 0xff=no tiene)
+};
+
+// Toda la info de clases que necesita CLASSINFO (cargada de MySQL).
+struct InfoClases {
+    std::vector<std::string> nombresAtributos;   // N1 nombres
+    std::vector<std::string> nombresHabilidades; // N2 nombres
+    std::vector<DelitoClase> delitos;            // N0 delitos (en orden de id)
 };
 
 // Un personaje guardado (para mostrarlo en la pantalla de selección).
@@ -90,6 +106,9 @@ public:
 
     // Devuelve TODAS las prisiones/servidores en línea (ordenadas por sort_order).
     std::vector<ServidorJuego> listarServidores();
+
+    // Carga delitos + atributos + habilidades (para construir CLASSINFO).
+    InfoClases cargarClases();
 
     // ---- Personajes ----
 

@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <map>
 
 namespace prison {
 
@@ -127,6 +128,88 @@ static int contarFilas(MYSQL* mysql, const char* consulta) {
         mysql_free_result(res);
     }
     return n;
+}
+
+InfoClases BaseDatos::cargarClases() {
+    InfoClases info;
+    if (!mysql_) return info;
+
+    auto query = [&](const char* q) -> MYSQL_RES* {
+        return mysql_query(mysql_, q) ? nullptr : mysql_store_result(mysql_);
+    };
+
+    // 1) Atributos (orden) -> nombres + mapa id->indice.
+    std::map<uint32_t, int> idxAttr;
+    if (MYSQL_RES* r = query("SELECT id, nombre FROM atributos ORDER BY sort_order, id")) {
+        MYSQL_ROW f;
+        while ((f = mysql_fetch_row(r))) {
+            idxAttr[(uint32_t)strtoul(f[0], nullptr, 10)] = (int)info.nombresAtributos.size();
+            info.nombresAtributos.push_back(f[1] ? f[1] : "");
+        }
+        mysql_free_result(r);
+    }
+    // 2) Habilidades (orden) -> nombres + mapa id->indice.
+    std::map<uint32_t, int> idxHab;
+    if (MYSQL_RES* r = query("SELECT id, nombre FROM habilidades ORDER BY sort_order, id")) {
+        MYSQL_ROW f;
+        while ((f = mysql_fetch_row(r))) {
+            idxHab[(uint32_t)strtoul(f[0], nullptr, 10)] = (int)info.nombresHabilidades.size();
+            info.nombresHabilidades.push_back(f[1] ? f[1] : "");
+        }
+        mysql_free_result(r);
+    }
+    int N1 = (int)info.nombresAtributos.size();
+    int N2 = (int)info.nombresHabilidades.size();
+
+    // 3) Valores de atributo por delito: mapa (delito,attrIdx) -> (a0,a1).
+    std::map<std::pair<uint32_t,int>, std::array<uint8_t,2>> valAttr;
+    if (MYSQL_RES* r = query("SELECT delito_id, atributo_id, a0, a1 FROM delito_atributo")) {
+        MYSQL_ROW f;
+        while ((f = mysql_fetch_row(r))) {
+            auto it = idxAttr.find((uint32_t)strtoul(f[1], nullptr, 10));
+            if (it == idxAttr.end()) continue;
+            valAttr[{(uint32_t)strtoul(f[0],nullptr,10), it->second}] =
+                {(uint8_t)strtoul(f[2],nullptr,10), (uint8_t)strtoul(f[3],nullptr,10)};
+        }
+        mysql_free_result(r);
+    }
+    // 4) Valores de habilidad por delito: mapa (delito,habIdx) -> (h0..h3).
+    std::map<std::pair<uint32_t,int>, std::array<uint8_t,4>> valHab;
+    if (MYSQL_RES* r = query("SELECT delito_id, habilidad_id, h0, h1, h2, h3 FROM delito_habilidad")) {
+        MYSQL_ROW f;
+        while ((f = mysql_fetch_row(r))) {
+            auto it = idxHab.find((uint32_t)strtoul(f[1], nullptr, 10));
+            if (it == idxHab.end()) continue;
+            valHab[{(uint32_t)strtoul(f[0],nullptr,10), it->second}] =
+                {(uint8_t)strtoul(f[2],nullptr,10), (uint8_t)strtoul(f[3],nullptr,10),
+                 (uint8_t)strtoul(f[4],nullptr,10), (uint8_t)strtoul(f[5],nullptr,10)};
+        }
+        mysql_free_result(r);
+    }
+    // 5) Delitos (en orden de id) + rellenar sus atributos y habilidades.
+    if (MYSQL_RES* r = query("SELECT id, nombre_m, nombre_f FROM delitos ORDER BY id")) {
+        MYSQL_ROW f;
+        while ((f = mysql_fetch_row(r))) {
+            uint32_t did = (uint32_t)strtoul(f[0], nullptr, 10);
+            DelitoClase d;
+            d.nombreM = f[1] ? f[1] : "";
+            d.nombreF = f[2] ? f[2] : "";
+            for (int a = 0; a < N1; a++) {
+                auto it = valAttr.find({did, a});
+                d.atributos.push_back(it != valAttr.end() ? it->second
+                                                          : std::array<uint8_t,2>{10, 0});
+            }
+            for (int h = 0; h < N2; h++) {
+                auto it = valHab.find({did, h});
+                // Sin fila => el delito NO tiene esa habilidad: 0xff = oculta.
+                d.habilidades.push_back(it != valHab.end() ? it->second
+                                                           : std::array<uint8_t,4>{0xff, 0, 0, 0});
+            }
+            info.delitos.push_back(std::move(d));
+        }
+        mysql_free_result(r);
+    }
+    return info;
 }
 
 int BaseDatos::contarPersonajes(uint32_t idCuenta) {
