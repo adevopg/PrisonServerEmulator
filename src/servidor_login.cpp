@@ -431,16 +431,14 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             }
         }
 
-        // --- Lista de prisiones (pantalla de cárceles, screen 0xc) ---
-        // SOLO se envía si la cuenta NO tiene personajes: así el jugador elige
-        // prisión y crea su primer personaje. Si YA tiene personajes, NO la
-        // enviamos, y el cliente se queda en la lista de personajes (screen 0xb,
-        // que puso LOGINACCEPTED). El reenvío de AVAILABLESERVERS forzaría la
-        // pantalla de cárceles, que es justo lo que NO queremos con personajes.
-        if (con.numPersonajes == 0) {
+        // --- Lista de prisiones (SIEMPRE) ---
+        // El char-select necesita estos datos para mostrar el nombre/servidor de
+        // cada personaje (si no, salía "no hay cárceles disponibles" y "--").
+        // El LOGINACCEPTED (enviado antes) deja la pantalla de personajes; estos
+        // mensajes solo aportan los datos de las prisiones.
+        {
             std::vector<ServidorJuego> servidores = bd_.listarServidores();
             if (servidores.size() > 255) servidores.resize(255);
-            registro::log("   (sin personajes) -> lista de cárceles, %zu prisiones", servidores.size());
 
             // SERVERADDED (0x13a9): un nodo por prisión [id][flag][extra][nombre][nombre2].
             {
@@ -459,12 +457,9 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 enviarFiable(con, remoto, m, ml);
                 registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
             }
-            // AVAILABLESERVERS (0x13ac): módulos + reclusos (al vuelo). Pone screen 0xc.
+            // AVAILABLESERVERS (0x13ac): módulos + reclusos (contados al vuelo).
             enviarReclusos(con, remoto);
-            registro::log("   -> 0x13d5(aceptar)+0x13a9+0x13ac (pantalla de cárceles)");
-        } else {
-            registro::log("   (%d personaje(s)) -> lista de personajes (no se envía la lista de cárceles)",
-                          con.numPersonajes);
+            registro::log("   -> 0x13d5(aceptar)+0x13a9(prisiones)+0x13ac(reclusos)");
         }
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
