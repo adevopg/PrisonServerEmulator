@@ -48,15 +48,18 @@ CREATE TABLE IF NOT EXISTS delito_atributo (
   PRIMARY KEY (delito_id, atributo_id)
 ) ENGINE=InnoDB;
 
--- ---- Valores de habilidad por delito (4 bytes: h0..h3). ----
+-- ---- Habilidades por delito (datos del MANUAL). ----
 --  Solo hay fila si el delito TIENE esa habilidad (si no, no aparece).
+--    maximo  = "Puntos Máximos" del manual (el cliente lo muestra x1.5)
+--    inicial = puntos al nivel 1 (1 normal, 0 si requiere entrenar a cierto nivel)
+--    nivel   = nivel requerido para entrenarla (0 = disponible desde el nivel 1)
+--  (La lista COMPLETA por delito se rellena en 12_habilidades.sql.)
 CREATE TABLE IF NOT EXISTS delito_habilidad (
   delito_id    INT UNSIGNED NOT NULL,
   habilidad_id INT UNSIGNED NOT NULL,
-  h0           TINYINT UNSIGNED NOT NULL DEFAULT 1,   -- (crudo) p.ej. valor actual
-  h1           TINYINT UNSIGNED NOT NULL DEFAULT 10,  -- (crudo) p.ej. máximo
-  h2           TINYINT UNSIGNED NOT NULL DEFAULT 0,   -- (crudo) p.ej. nivel requerido
-  h3           TINYINT UNSIGNED NOT NULL DEFAULT 0,   -- (crudo)
+  maximo       TINYINT UNSIGNED NOT NULL DEFAULT 100,
+  inicial      TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  nivel        TINYINT UNSIGNED NOT NULL DEFAULT 0,
   PRIMARY KEY (delito_id, habilidad_id)
 ) ENGINE=InnoDB;
 
@@ -97,7 +100,7 @@ ON DUPLICATE KEY UPDATE nombre=VALUES(nombre);
 INSERT IGNORE INTO delito_atributo (delito_id, atributo_id, a0, a1)
   SELECT d.id, a.id, 10, 0 FROM delitos d CROSS JOIN atributos a;
 
--- Habilidades por delito: baseline con las 4 habilidades de combate para TODOS
--- (para que la lista aparezca). Añade más según el delito.
-INSERT IGNORE INTO delito_habilidad (delito_id, habilidad_id, h0, h1, h2, h3)
-  SELECT d.id, h.id, 1, 10, 0, 0 FROM delitos d CROSS JOIN habilidades h WHERE h.id <= 3;
+-- Habilidades por delito: baseline con las 4 de combate para TODOS (para que
+-- la lista aparezca). La lista COMPLETA y real se rellena en 12_habilidades.sql.
+INSERT IGNORE INTO delito_habilidad (delito_id, habilidad_id, maximo, inicial, nivel)
+  SELECT d.id, h.id, 150, 1, 0 FROM delitos d CROSS JOIN habilidades h WHERE h.id <= 3;

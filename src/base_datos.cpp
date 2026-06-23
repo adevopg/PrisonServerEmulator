@@ -173,16 +173,23 @@ InfoClases BaseDatos::cargarClases() {
         }
         mysql_free_result(r);
     }
-    // 4) Valores de habilidad por delito: mapa (delito,habIdx) -> (h0..h3).
+    // 4) Habilidades por delito: columnas claras (maximo, inicial, nivel).
+    //    Se traducen a los 4 bytes que espera el cliente:
+    //      h0 = maximo (el cliente lo muestra x1.5; 0xff = la clase no la tiene)
+    //      h1 = inicial (puntos al nivel 1)
+    //      h2 = nivel requerido para entrenar (0 = desde el nivel 1)
+    //      h3 = 0
     std::map<std::pair<uint32_t,int>, std::array<uint8_t,4>> valHab;
-    if (MYSQL_RES* r = query("SELECT delito_id, habilidad_id, h0, h1, h2, h3 FROM delito_habilidad")) {
+    if (MYSQL_RES* r = query("SELECT delito_id, habilidad_id, maximo, inicial, nivel FROM delito_habilidad")) {
         MYSQL_ROW f;
         while ((f = mysql_fetch_row(r))) {
             auto it = idxHab.find((uint32_t)strtoul(f[1], nullptr, 10));
             if (it == idxHab.end()) continue;
             valHab[{(uint32_t)strtoul(f[0],nullptr,10), it->second}] =
-                {(uint8_t)strtoul(f[2],nullptr,10), (uint8_t)strtoul(f[3],nullptr,10),
-                 (uint8_t)strtoul(f[4],nullptr,10), (uint8_t)strtoul(f[5],nullptr,10)};
+                {(uint8_t)strtoul(f[2],nullptr,10),   // maximo  -> h0
+                 (uint8_t)strtoul(f[3],nullptr,10),   // inicial -> h1
+                 (uint8_t)strtoul(f[4],nullptr,10),   // nivel   -> h2
+                 0};
         }
         mysql_free_result(r);
     }
