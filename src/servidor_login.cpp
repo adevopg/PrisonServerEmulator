@@ -61,6 +61,13 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
 
     uint64_t clave = claveDeConexion(remoto);
 
+    // Marcar "última actividad" de esta conexión (para la caducidad de "cuenta en uso").
+    {
+        auto itAct = conexiones_.find(clave);
+        if (itAct != conexiones_.end())
+            itAct->second.ultimaActividad = static_cast<uint32_t>(time(nullptr));
+    }
+
     // ===================== HANDSHAKE =====================
     if (esHandshake && tipo == pr::TIPO_SYN) {
         // SYN: el nombre de usuario va tras el nonce (wire[0x1e..], terminado en NUL).
@@ -89,6 +96,7 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         c.idCuenta = cuenta.id;
         registro::log("   MySQL: usuario='%s' -> %s idCuenta=%u",
                       usuario.c_str(), cuenta.encontrada ? "ENCONTRADA" : "NO ENCONTRADA", c.idCuenta);
+        c.ultimaActividad = static_cast<uint32_t>(time(nullptr));
         conexiones_[clave] = c;
 
         // Construir el SYN-ACK con el intercambio de clave.
@@ -531,11 +539,20 @@ static bool contrasenaCoincide(const std::string& recibidoHex,
 // ----------------------------------------------------------------------------
 bool ServidorLogin::cuentaYaConectada(uint32_t idCuenta, uint64_t claveActual) {
     if (idCuenta == 0) return false; // sin id no comprobamos
+
+    // Como dice el cartel del cliente, "cuenta en uso" solo dura 1 minuto: una
+    // conexión cuenta como activa solo si recibió algo en los últimos 60s.
+    const uint32_t CADUCIDAD_USO = 60;
+    uint32_t ahora = static_cast<uint32_t>(time(nullptr));
+    uint32_t ipActual = static_cast<uint32_t>(claveActual >> 16);  // la clave es (ip<<16)|puerto
+
     for (auto& par : conexiones_) {
-        if (par.first == claveActual) continue;         // saltar la conexión actual
+        if (par.first == claveActual) continue;                 // la conexión actual
         const Conexion& otra = par.second;
-        if (otra.idCuenta == idCuenta && otra.enviadoLogin)
-            return true; // otra conexión ya hizo login con esta cuenta
+        if (otra.idCuenta != idCuenta || !otra.enviadoLogin) continue;
+        if (ahora - otra.ultimaActividad >= CADUCIDAD_USO) continue; // expiró (1 min)
+        if (static_cast<uint32_t>(par.first >> 16) == ipActual) continue; // mismo equipo reconectando
+        return true; // otra sesión activa, en otro equipo, con esta cuenta
     }
     return false;
 }

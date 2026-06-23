@@ -47,6 +47,7 @@ struct Conexion {
 
     uint32_t idCuenta   = 0;     // id de la cuenta en MySQL (0 si no se encontró)
     Cuenta   cuenta;             // datos de la cuenta (para validar en el LOGIN)
+    uint32_t ultimaActividad = 0; // epoch del último paquete recibido (para "cuenta en uso")
 };
 
 } // namespace prison
