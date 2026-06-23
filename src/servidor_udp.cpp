@@ -89,7 +89,6 @@ void ServidorUdp::enviarFiable(Conexion& c, const udp::endpoint& destino,
     enviar(paquete, total, destino);
 
     registro::log("   => enviarFiable idMensaje=%u longitud=%d", c.idMensajeTx, longitud);
-    registro::volcadoHex("   tx fiable (cifrado):", paquete, total);
 }
 
 void ServidorUdp::enviarFragmentado(Conexion& c, const udp::endpoint& destino,

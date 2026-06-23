@@ -129,8 +129,13 @@ void ServidorMundo::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
 
     cifrado::descifrar(pay, plen, K);
     uint16_t opcode = (plen >= 0x16) ? leer16(pay + 0x14) : 0;
-    registro::log("   [MUNDO] datos plen=%d opcodeApp=0x%04x", plen, opcode);
-    registro::volcadoHex("   [MUNDO] datos (descifrados):", pay, plen > 128 ? 128 : plen);
+    bool esPing = (plen >= 18 && leer16(pay + 8) == op::PING);
+    registro::log("   [MUNDO] datos plen=%d opcodeApp=0x%04x%s", plen, opcode,
+                  esPing ? " (ping)" : opcode == op::PASSDOOR ? " (PASSDOOR)" : "");
+
+    // Solo volcamos el hex de lo que aún no conocemos.
+    if (!esPing && opcode != op::PASSDOOR)
+        registro::volcadoHex("   [MUNDO] datos del opcode desconocido:", pay, plen > 128 ? 128 : plen);
 
     if (it != conexiones_.end())
         procesarDatos(buf, n, remoto, flags, opcode);

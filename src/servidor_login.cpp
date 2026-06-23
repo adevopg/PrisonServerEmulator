@@ -114,7 +114,6 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         enviar(r, sizeof r, remoto);
         registro::log("   -> tipo6 SYN-ACK idConexion=%08x K=%08x TS=%08x f1=%08x f2=%08x",
                       c.idConexion, K, TS, f1, f2);
-        registro::volcadoHex("   tx:", r, sizeof r);
         return;
     }
 
@@ -187,21 +186,35 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
     int plen = n - pr::OFF_PAYLOAD;
     uint8_t* pay = buf + pr::OFF_PAYLOAD;
-    if (K && plen > 0) {
-        cifrado::descifrar(pay, plen, K);
-        registro::volcadoHex("   datos (descifrados):", pay, plen);
-    } else {
-        registro::volcadoHex("   datos (en claro):", pay, plen);
-    }
 
-    // El opcode de aplicación está en el offset 0x14 del payload descifrado.
-    //   0x1388 = LOGIN, 0x13a1 = latido (heartbeat).
-    if (!(K && plen >= pr::TAM_CABECERA && it != conexiones_.end())) return;
+    // Sin clave o sin datos no hay nada que procesar (p.ej. ACK puro del cliente).
+    if (!(K && plen > 0)) return;
+    cifrado::descifrar(pay, plen, K);
+
+    // Paquete demasiado corto para llevar opcode (ACK/control): se ignora en silencio.
+    if (!(plen >= pr::TAM_CABECERA && it != conexiones_.end())) return;
 
     Conexion& con = it->second;
     uint16_t opcode = leer16(pay + 0x14);
-    registro::log("   opcode app = 0x%04x%s", opcode,
-                  opcode == op::LOGIN ? " (LOGIN)" : opcode == op::LATIDO ? " (latido)" : "");
+
+    // Etiqueta legible de cada opcode que el cliente nos envía, y si lo conocemos.
+    const char* etiqueta = "";
+    bool conocido = true;
+    switch (opcode) {
+        case op::CONECTAR_CONFIRMA: etiqueta = " (confirmación de conexión)"; break;
+        case op::LOGIN:             etiqueta = " (LOGIN)"; break;
+        case op::CREAR_PERSONAJE:   etiqueta = " (crear personaje)"; break;
+        case op::SELECCIONAR:       etiqueta = " (auto-seleccionar personaje)"; break;
+        case op::LATIDO:            etiqueta = " (latido)"; break;
+        case op::JUGAR:             etiqueta = " (JUGAR)"; break;
+        default:                    etiqueta = " (DESCONOCIDO)"; conocido = false; break;
+    }
+    registro::log("   opcode app = 0x%04x%s", opcode, etiqueta);
+
+    // Solo volcamos el hexadecimal de los paquetes que AÚN NO conocemos, para
+    // poder estudiarlos. Los conocidos no ensucian el log.
+    if (!conocido)
+        registro::volcadoHex("   datos del opcode desconocido:", pay, plen);
 
     // -------------------- LOGIN (0x1388) --------------------
     // Respondemos con la estructura de cuenta (opcode 0x1389) fragmentada.
