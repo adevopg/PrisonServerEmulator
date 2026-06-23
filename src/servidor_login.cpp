@@ -276,22 +276,39 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFragmentado(con, remoto, app, 2 + 0x9cd);
     }
     // -------------------- CREAR PERSONAJE (0x1394) --------------------
-    // El cliente envía nick + atributos + aspecto al pulsar CONTINUAR.
-    // Respondemos CHARCREATED (0x1395). El nick va asciiz en pay+0x16.
+    // El cliente envía, tras el opcode (pay+0x16): nick (asciiz) + atributos +
+    // aspecto. Guardamos el personaje en MySQL y respondemos CHARCREATED (0x1395).
     else if (opcode == op::CREAR_PERSONAJE) {
-        char nick[24] = {0};
-        if (plen > 0x16) {
-            const char* p = reinterpret_cast<const char*>(pay + 0x16);
-            for (int i = 0; i < static_cast<int>(sizeof nick) - 1 && 0x16 + i < plen && p[i]; i++)
-                nick[i] = p[i];
-        }
-        if (!nick[0]) strcpy(nick, "Recluso");
-        registro::log("   *** CREAR PERSONAJE nick='%s' -> CHARCREATED (0x1395) ***", nick);
+        const uint8_t* datosCrear = pay + 0x16;            // datos de creación
+        int longCrear = plen - 0x16; if (longCrear < 0) longCrear = 0;
 
+        char nick[32] = {0};
+        for (int i = 0; i < static_cast<int>(sizeof nick) - 1 && i < longCrear && datosCrear[i]; i++)
+            nick[i] = datosCrear[i];
+        if (!nick[0]) strcpy(nick, "Recluso");
+
+        // Volcamos el paquete completo para poder mapear cada campo (nick, sexo,
+        // clase, atributos, aspecto) a su columna. (Quitar cuando esté mapeado.)
+        registro::log("   *** CREAR PERSONAJE nick='%s' (datos=%d bytes) ***", nick, longCrear);
+        registro::volcadoHex("   0x1394 CREATE payload:", datosCrear, longCrear);
+
+        // Guardar en la base de datos (de momento: nick + bloque crudo completo).
+        int slot = 0;
+        if (con.cuenta.id) {
+            slot = bd_.contarPersonajes(con.cuenta.id);
+            bool ok = bd_.crearPersonaje(con.cuenta.id, slot, nick,
+                                         datosCrear, longCrear > 1024 ? 1024 : longCrear);
+            registro::log("   -> guardar personaje en BD: %s (cuenta=%u slot=%d)",
+                          ok ? "OK" : "FALLÓ", con.cuenta.id, slot);
+        } else {
+            registro::log("   (sin idCuenta válido: no se guarda en BD)");
+        }
+
+        // Responder CHARCREATED (0x1395) para que el cliente lo coloque en la ranura.
         static uint8_t cca[2 + 1 + 0x342];
         memset(cca, 0, sizeof cca);
-        escribir16(cca, op::CHARCREATED);         // CHARCREATED
-        cca[2] = 0;                               // índice de personaje 0
+        escribir16(cca, op::CHARCREATED);
+        cca[2] = static_cast<uint8_t>(slot);      // índice de personaje (ranura)
         uint8_t* nch = cca + 3;                   // estructura del personaje (0x342)
         nch[0] = 1;                               // +0 existe
         memcpy(nch + 2, nick, strlen(nick));      // +2 nombre
@@ -302,6 +319,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         nch[0x69] = 0;                            // +0x69 nivel (se muestra +1)
         nch[0x6a] = 0;                            // +0x6a estado
         enviarFragmentado(con, remoto, cca, 2 + 1 + 0x342);
+        registro::log("   -> CHARCREATED (0x1395) ranura=%d", slot);
     }
     // -------------------- LATIDO (0x13a1) -> ACEPTAR + LISTA SERVIDORES --------------------
     else if (opcode == op::LATIDO && con.enviadoLogin && !con.enviadoAceptar) {

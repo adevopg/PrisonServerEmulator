@@ -77,6 +77,16 @@ public:
     // Devuelve TODAS las prisiones/servidores en línea (ordenadas por sort_order).
     std::vector<ServidorJuego> listarServidores();
 
+    // ---- Personajes ----
+
+    // Cuántos personajes (no borrados) tiene la cuenta.
+    int contarPersonajes(uint32_t idCuenta);
+
+    // Guarda un personaje nuevo. "datos" es el bloque crudo de aspecto/atributos
+    // que envía el cliente (puede ser nullptr). Devuelve true si se insertó.
+    bool crearPersonaje(uint32_t idCuenta, int slot, const std::string& nick,
+                        const uint8_t* datos, int longitudDatos);
+
 private:
     MYSQL* mysql_ = nullptr;
 };

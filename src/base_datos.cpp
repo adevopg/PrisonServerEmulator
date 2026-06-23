@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace prison {
 
@@ -111,6 +112,47 @@ std::vector<ServidorJuego> BaseDatos::listarServidores() {
         mysql_free_result(res);
     }
     return servidores;
+}
+
+int BaseDatos::contarPersonajes(uint32_t idCuenta) {
+    if (!mysql_) return 0;
+    char consulta[160];
+    snprintf(consulta, sizeof consulta,
+             "SELECT COUNT(*) FROM characters WHERE account_id=%u AND deleted=0", idCuenta);
+    if (mysql_query(mysql_, consulta)) return 0;
+    int n = 0;
+    MYSQL_RES* res = mysql_store_result(mysql_);
+    if (res) {
+        MYSQL_ROW fila = mysql_fetch_row(res);
+        if (fila && fila[0]) n = atoi(fila[0]);
+        mysql_free_result(res);
+    }
+    return n;
+}
+
+bool BaseDatos::crearPersonaje(uint32_t idCuenta, int slot, const std::string& nick,
+                               const uint8_t* datos, int longitudDatos) {
+    if (!mysql_) return false;
+
+    // Escapar el nick (texto) y el bloque de datos (binario) para el SQL.
+    char nickEsc[128];
+    mysql_real_escape_string(mysql_, nickEsc, nick.c_str(),
+                             static_cast<unsigned long>(nick.size()));
+
+    std::string blobEsc;
+    if (datos && longitudDatos > 0) {
+        std::vector<char> tmp(static_cast<size_t>(longitudDatos) * 2 + 1);
+        unsigned long m = mysql_real_escape_string(
+            mysql_, tmp.data(), reinterpret_cast<const char*>(datos),
+            static_cast<unsigned long>(longitudDatos));
+        blobEsc.assign(tmp.data(), m);
+    }
+
+    std::string q = "INSERT INTO characters (account_id, slot, nick, appearance) VALUES (";
+    q += std::to_string(idCuenta) + ", " + std::to_string(slot) + ", '" + nickEsc + "', ";
+    q += blobEsc.empty() ? "NULL)" : ("'" + blobEsc + "')");
+
+    return mysql_query(mysql_, q.c_str()) == 0;
 }
 
 } // namespace prison
