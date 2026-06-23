@@ -141,14 +141,13 @@ int BaseDatos::contarReclusos(uint32_t idServidor) {
     return contarFilas(mysql_, consulta);
 }
 
-std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta, uint32_t idServidor) {
+std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     std::vector<Personaje> personajes;
     if (!mysql_) return personajes;
     char consulta[220];
     snprintf(consulta, sizeof consulta,
-             "SELECT slot, nick, sex, class, level FROM characters "
-             "WHERE account_id=%u AND server_id=%u AND deleted=0 ORDER BY slot",
-             idCuenta, idServidor);
+             "SELECT slot, nick, sex, class, level, server_id FROM characters "
+             "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
     if (mysql_query(mysql_, consulta)) return personajes;
     MYSQL_RES* res = mysql_store_result(mysql_);
     if (res) {
@@ -159,7 +158,8 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta, uint32_t i
             p.nick  = fila[1] ? fila[1] : "";
             p.sexo  = fila[2] ? static_cast<uint8_t>(atoi(fila[2])) : 0;
             p.clase = fila[3] ? static_cast<uint8_t>(atoi(fila[3])) : 0;
-            p.nivel = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
+            p.nivel    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
+            p.servidor = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 1;
             personajes.push_back(std::move(p));
         }
         mysql_free_result(res);

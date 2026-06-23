@@ -257,10 +257,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         }
 
         // La cuenta tiene 3 ranuras de personaje (0x9cd = 7 + 3*0x342). Cargamos
-        // los personajes REALES de MySQL de ESTA cuenta Y de ESTA prisión (cada
-        // prisión tiene los suyos). Si hay 0, el cliente muestra CREAR personaje.
-        std::vector<Personaje> personajes =
-            bd_.cargarPersonajes(con.cuenta.id, con.prisionSeleccionada);
+        // TODOS los personajes de la cuenta; cada uno lleva su prisión en +0x65 y
+        // el cliente muestra los de la prisión elegida (filtra él). Si hay 0, el
+        // cliente muestra CREAR personaje.
+        std::vector<Personaje> personajes = bd_.cargarPersonajes(con.cuenta.id);
         if (personajes.size() > 3) personajes.resize(3);
 
         static uint8_t app[2 + 0x9cd];
@@ -281,7 +281,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             escribir32(ch + 0x34, 1000);              // +0x34 pos X (evita div/0 en el render)
             escribir32(ch + 0x38, 1000);              // +0x38 pos Y
             escribir32(ch + 0x51, 0xFFFFFFFFu);       // +0x51 suprime el auto-enter 0x139f
-            escribir32(ch + 0x65, con.prisionSeleccionada); // +0x65 id de prisión
+            escribir32(ch + 0x65, p.servidor);        // +0x65 prisión del personaje (el cliente filtra por aquí)
             ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
             ch[0x6a] = 0;                             // +0x6a estado
         }

@@ -46,11 +46,12 @@ struct Cuenta {
 
 // Un personaje guardado (para mostrarlo en la pantalla de selección).
 struct Personaje {
-    int         slot  = 0;
+    int         slot     = 0;
     std::string nick;
-    uint8_t     sexo  = 0;
-    uint8_t     clase = 0;
-    uint32_t    nivel = 1;
+    uint8_t     sexo     = 0;
+    uint8_t     clase    = 0;
+    uint32_t    nivel    = 1;
+    uint32_t    servidor = 1;  // prisión a la que pertenece (va en +0x65 -> el cliente filtra)
 };
 
 // Una "prisión" (servidor de mundo) de la lista de selección. Los campos son
@@ -96,9 +97,10 @@ public:
     // "Reclusos" de una prisión = nº de personajes (no borrados) creados en ella.
     int contarReclusos(uint32_t idServidor);
 
-    // Carga los personajes (no borrados) de la cuenta EN UNA prisión concreta,
-    // ordenados por ranura. (Cada prisión tiene sus propios personajes.)
-    std::vector<Personaje> cargarPersonajes(uint32_t idCuenta, uint32_t idServidor);
+    // Carga TODOS los personajes (no borrados) de la cuenta, con su prisión
+    // (server_id). El cliente recibe todos una vez y muestra los de la prisión
+    // elegida filtrando por ese id; por eso aquí no se filtra por prisión.
+    std::vector<Personaje> cargarPersonajes(uint32_t idCuenta);
 
     // Guarda un personaje nuevo en una prisión. "datos" es el bloque crudo de
     // aspecto/atributos del cliente (puede ser nullptr). Devuelve true si se insertó.
