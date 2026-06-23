@@ -214,21 +214,36 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 Sleep(80);
             }
 
-            // OBJECTINFO (0x13a8): tabla de definiciones de objetos/items.
+            // OBJECTINFO (0x13a8): tabla de definiciones de objetos/items ([0x5ed334],
+            // hasta 256 entradas). La ficha in-game muestra el equipo/inventario del
+            // jugador leyendo objtable[id].nombre y haciendo strchr(nombre, ' '); si ese
+            // nombre es NULL -> CRASH. Por eso definimos TODOS los ids 0..255 con un
+            // nombre no vacio. Formato (descomprimido), parseado por el loader 0x587df0:
+            //   [N:u16] N strings de categoria
+            //   [M:u32] M defs ; por def: [id:u16][nameLen:u8][name\0][28 bytes][len3:u8=0]
             {
-                uint8_t op[256]; int o = 0;
-                escribir16(op + o, 1); o += 2;               // nameCount = 1
-                op[o++] = 4; memcpy(op + o, "obj", 4); o += 4; // name[0] = "obj\0"
-                escribir32(op + o, 1); o += 4;               // defCount = 1
-                escribir16(op + o, 0xff); o += 2;            // def id = 0xff (cubre ids 0..255)
-                op[o++] = 0;                                 // longitud de nombre de def = 0
-                memset(op + o, 0, 0x80); o += 0x80;          // datos de def: ceros
-                uint8_t z[256]; int zl = cifrado::comprimirZlibStored(z, op, o);
-                uint8_t oi[2 + 8 + 256];
-                escribir16(oi, op::OBJECTINFO); escribir32(oi + 2, o); escribir32(oi + 6, zl); memcpy(oi + 10, z, zl);
-                uint8_t m[400]; int ml = pr::componerMensajeApp(m, con.idConexion, oi, 10 + zl);
+                const int NOBJ = 256;
+                static uint8_t op[16384]; int o = 0;
+                escribir16(op + o, 1); o += 2;                 // N = 1 categoria
+                op[o++] = 4; memcpy(op + o, "obj", 4); o += 4; // categoria[0] = "obj\0"
+                escribir32(op + o, NOBJ); o += 4;              // M = nº de defs
+                for (int id = 0; id < NOBJ; id++) {
+                    escribir16(op + o, (uint16_t)id); o += 2;  // def id
+                    op[o++] = 2;                               // nameLen (incluye \0)
+                    op[o++] = 'o'; op[o++] = 0;                // name = "o"
+                    memset(op + o, 0, 28); o += 28;            // cabecera de def (28B) a cero
+                    op[o++] = 0;                               // len3 = 0 (sub-array vacio)
+                }
+                static uint8_t z[16384]; int zl = cifrado::comprimirZlibStored(z, op, o);
+                static uint8_t oi[10 + 16384]; int oil = 0;
+                escribir16(oi, op::OBJECTINFO); oil = 2;
+                escribir32(oi + oil, (uint32_t)o);  oil += 4;
+                escribir32(oi + oil, (uint32_t)zl); oil += 4;
+                memcpy(oi + oil, z, zl); oil += zl;
+                static uint8_t m[10 + 16384 + 64];
+                int ml = pr::componerMensajeApp(m, con.idConexion, oi, oil);
                 enviarFiable(con, remoto, m, ml);
-                registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 ***");
+                registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 (%d objs, %dB->%dB) ***", NOBJ, o, zl);
                 Sleep(80);
             }
 
