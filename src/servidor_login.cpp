@@ -188,7 +188,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
         static uint8_t app[2 + 0x9cd];
         memset(app, 0, sizeof app);
-        escribir16(app, 0x1389);                                // handler de cuenta 0x40a59e
+        escribir16(app, op::CUENTA);                            // handler de cuenta 0x40a59e
         escribir32(app + 2, con.idCuenta ? con.idCuenta : 1);   // idCuenta en struct[0]
         app[2 + 4] = 1;                                         // struct+4 = nº de personajes = 1
 
@@ -225,7 +225,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
         static uint8_t cca[2 + 1 + 0x342];
         memset(cca, 0, sizeof cca);
-        escribir16(cca, 0x1395);                  // CHARCREATED
+        escribir16(cca, op::CHARCREATED);         // CHARCREATED
         cca[2] = 0;                               // índice de personaje 0
         uint8_t* nch = cca + 3;                   // estructura del personaje (0x342)
         nch[0] = 1;                               // +0 existe
@@ -245,7 +245,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // LOGINACCEPTED (0x13d5 count=0) -> evento 0x482, loginPhase->2
         {
             uint8_t a[6];
-            escribir16(a, 0x13d5);
+            escribir16(a, op::LOGINACCEPTED);
             escribir32(a + 2, 0);
             uint8_t m[64];
             int ml = pr::componerMensajeApp(m, con.idConexion, a, 6);
@@ -268,7 +268,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t comp[512];
             int cl = cifrado::comprimirZlibStored(comp, blob, bi);
             uint8_t sv[2 + 12 + 512]; int si = 0;
-            escribir16(sv, 0x13d5); si = 2;
+            escribir16(sv, op::LOGINACCEPTED); si = 2;
             escribir32(sv + si, 1); si += 4;            // count
             escribir32(sv + si, (uint32_t)bi); si += 4; // tamaño sin comprimir
             escribir32(sv + si, (uint32_t)cl); si += 4; // tamaño comprimido
@@ -301,7 +301,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t comp[8192];
             int cl = cifrado::comprimirZlibStored(comp, blob, bl);
             uint8_t sv[4400]; int si = 0;
-            escribir16(sv, 0x13c2); si = 2;
+            escribir16(sv, op::CLASSINFO); si = 2;
             escribir32(sv + si, 0); si += 4;             // cabecera de 4 bytes (payload[0..3])
             escribir32(sv + si, (uint32_t)bl); si += 4;  // tamaño sin comprimir (payload[4])
             escribir32(sv + si, (uint32_t)cl); si += 4;  // tamaño comprimido   (payload[8])
@@ -330,7 +330,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // SERVERADDED (0x13a9): crea el nodo de cada prisión con su nombre mostrado.
         {
             uint8_t sv[400]; int si = 0;
-            escribir16(sv, 0x13a9); si = 2;
+            escribir16(sv, op::SERVERADDED); si = 2;
             escribir16(sv + si, 2); si += 2;             // count = 2
             for (int e = 0; e < 2; e++) {
                 escribir32(sv + si, srvIds[e]); si += 4; // id
@@ -355,7 +355,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 for (int k = 0; k < cuenta; k++) { data[di++] = ' '; data[di++] = 0; } // relleno UTF-16
             }
             uint8_t sv[8 + sizeof(data)]; int si = 0;
-            escribir16(sv, 0x13ac); si = 2; sv[si++] = 2; escribir32(sv + si, (uint32_t)di); si += 4;
+            escribir16(sv, op::AVAILABLESERVERS); si = 2; sv[si++] = 2; escribir32(sv + si, (uint32_t)di); si += 4;
             memcpy(sv + si, data, di); si += di;
             uint8_t smsg[24 + sizeof(sv)];
             int smlen = pr::componerMensajeApp(smsg, con.idConexion, sv, si);
@@ -370,7 +370,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         con.enviadoEntrar = true;
         uint8_t indicePj = (plen > 0x16) ? pay[0x16] : 0;   // personaje elegido
         uint8_t a[2 + 1 + 4];
-        escribir16(a, 0x13f2);   // ENTERINGGAMEACCEPTED
+        escribir16(a, op::ENTERINGGAMEACCEPTED);   // ENTERINGGAMEACCEPTED
         a[2] = indicePj;         // índice de personaje
         escribir32(a + 3, 0);    // valor (reinterpretado como float)
         uint8_t m[64];
@@ -394,7 +394,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 escribir32(data + di, 1); di += 4; data[di++] = (uint8_t)nl;
                 for (int k = 0; k < nl; k++) { data[di++] = (uint8_t)nm[k]; data[di++] = 0; }
                 uint8_t sv[2 + 5 + 64]; int si = 0;
-                escribir16(sv, 0x13ac); si = 2; sv[si++] = 1; escribir32(sv + si, (uint32_t)di); si += 4;
+                escribir16(sv, op::AVAILABLESERVERS); si = 2; sv[si++] = 1; escribir32(sv + si, (uint32_t)di); si += 4;
                 memcpy(sv + si, data, di); si += di;
                 uint8_t smsg[128];
                 int smlen = pr::componerMensajeApp(smsg, con.idConexion, sv, si);
@@ -403,7 +403,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             registro::log("   -> 0x13d5(aceptar)+0x13ac(servidores) [pre-entrada]");
         }
         uint8_t a[2 + 1 + 4];
-        escribir16(a, 0x13f2);   // ENTERINGGAMEACCEPTED
+        escribir16(a, op::ENTERINGGAMEACCEPTED);   // ENTERINGGAMEACCEPTED
         a[2] = 0;                // índice de personaje 0 (auto)
         escribir32(a + 3, 0);
         uint8_t m[64];

@@ -166,7 +166,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             // temporizadores de ping. PingTime=0 era el bug (sin ping -> caída).
             {
                 uint8_t sp[2 + 0x40]; memset(sp, 0, sizeof sp);
-                escribir16(sp, 0x139e);
+                escribir16(sp, op::SERVERPARAMS);
                 escribir16(sp + 6, 15);     // LinkProblems = 15s
                 escribir16(sp + 8, 60);     // LinkDropped  = 60s
                 escribir32(sp + 10, 2000);  // PingTime => el cliente hace ping cada ~2s
@@ -189,7 +189,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 escribir16(up + u, 0); u += 2;                  // subcount = 0
                 uint8_t z[512]; int zl = cifrado::comprimirZlibStored(z, up, u);
                 uint8_t mi[700];
-                escribir16(mi, 0x13a5); escribir32(mi + 2, u); escribir32(mi + 6, zl); memcpy(mi + 10, z, zl);
+                escribir16(mi, op::MAPINFO); escribir32(mi + 2, u); escribir32(mi + 6, zl); memcpy(mi + 10, z, zl);
                 uint8_t m[900]; int ml = pr::componerMensajeApp(m, con.idConexion, mi, 10 + zl);
                 enviarFiable(con, remoto, m, ml);
                 registro::log("   [MUNDO] *** MAPINFO 0x13a5 tmpl=%u map=%s ***", tmpl, mapnm);
@@ -207,7 +207,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 memset(op + o, 0, 0x80); o += 0x80;          // datos de def: ceros
                 uint8_t z[256]; int zl = cifrado::comprimirZlibStored(z, op, o);
                 uint8_t oi[2 + 8 + 256];
-                escribir16(oi, 0x13a8); escribir32(oi + 2, o); escribir32(oi + 6, zl); memcpy(oi + 10, z, zl);
+                escribir16(oi, op::OBJECTINFO); escribir32(oi + 2, o); escribir32(oi + 6, zl); memcpy(oi + 10, z, zl);
                 uint8_t m[400]; int ml = pr::componerMensajeApp(m, con.idConexion, oi, 10 + zl);
                 enviarFiable(con, remoto, m, ml);
                 registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 ***");
@@ -219,7 +219,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 int msel = getenv("MAP") ? (int)strtol(getenv("MAP"), 0, 0) : 0xfa;
                 uint32_t rid = getenv("RID") ? (uint32_t)strtol(getenv("RID"), 0, 0) : 1;
                 uint8_t r0[4 + 0x30]; memset(r0, 0, sizeof r0);
-                escribir16(r0, 0);          // opcode 0 = ROOMPARAMS
+                escribir16(r0, op::ROOMPARAMS);  // opcode 0 = ROOMPARAMS
                 escribir16(r0 + 2, 1);      // room_id (cabecera)
                 r0[4] = (uint8_t)msel;      // room_data[0] = selector de mapa
                 escribir32(r0 + 14, rid);   // room_data[10] = RoomID
@@ -237,7 +237,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             int L = (int)strlen(nm);
             int posz = getenv("POS_SZ") ? (int)strtol(getenv("POS_SZ"), 0, 0) : 0x220;
             uint8_t c2[2 + 96 + 8 + 0x280]; memset(c2, 0, sizeof c2); int o = 0;
-            escribir16(c2 + o, 2); o += 2;                // opcode 2
+            escribir16(c2 + o, op::CREAR_JUGADOR); o += 2; // opcode 2
             memcpy(c2 + o, nm, L + 1); o += L + 1;        // nombre + NUL
             escribir32(c2 + o, pid); o += 4;             // id
             escribir32(c2 + o, 0);   o += 4;
@@ -252,7 +252,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         {
             int pdz = getenv("PD_SZ") ? (int)strtol(getenv("PD_SZ"), 0, 0) : 0x220;
             uint8_t c3[2 + 4 + 0x280]; memset(c3, 0, sizeof c3);
-            escribir16(c3, 3);          // opcode 3
+            escribir16(c3, op::ENTRAR); // opcode 3
             escribir32(c3 + 2, pid);    // id (clave de búsqueda)
             c3[0x16] = 0xff;            // bloque_datos[0x10] = puerta = 0xff
             uint8_t m[0x300]; int ml = pr::componerMensajeApp(m, con.idConexion, c3, 6 + pdz);
@@ -263,7 +263,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
         // ---- opcode 6: ROOMREADY (finaliza la sala y da el control al jugador) ----
         {
-            uint8_t r6[2]; escribir16(r6, 6);
+            uint8_t r6[2]; escribir16(r6, op::ROOMREADY);
             uint8_t m[64]; int ml = pr::componerMensajeApp(m, con.idConexion, r6, 2);
             enviarFiable(con, remoto, m, ml);
             registro::log("   [MUNDO] *** ROOMREADY op6 ***");
