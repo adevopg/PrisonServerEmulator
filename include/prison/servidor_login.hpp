@@ -57,6 +57,9 @@ private:
     void enviarRechazo(Conexion& con, const boost::asio::ip::udp::endpoint& remoto,
                        EstadoCuenta estado);
 
+    // Envía SERVERADDED (0x13a9): los nombres de cada prisión (nodos del árbol).
+    void enviarServerAdded(Conexion& con, const boost::asio::ip::udp::endpoint& remoto);
+
     // Envía AVAILABLESERVERS (0x13ac): por cada prisión, módulos (nº de celdas) y
     // reclusos (= nº de personajes creados en esa prisión, contados al vuelo).
     void enviarReclusos(Conexion& con, const boost::asio::ip::udp::endpoint& remoto);

@@ -39,6 +39,7 @@ enum OpcodeCliente : uint16_t {
     CREAR_PERSONAJE   = 0x1394, // CONTINUAR en crear-personaje (nick + atributos)
     SELECCIONAR       = 0x139f, // auto-selección / ENTRAR con un índice de personaje
     LATIDO            = 0x13a1, // "heartbeat", lo envía cada ~5 segundos
+    PIDE_SERVIDORES   = 0x13aa, // GETAVAILABLESERVERS: pide la lista de cárceles
     JUGAR             = 0x13f1, // pulsó JUGAR (pide entrar al mundo)
 };
 

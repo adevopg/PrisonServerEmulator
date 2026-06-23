@@ -440,40 +440,19 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             }
         }
 
-        // --- Datos de prisiones ---
-        // SERVERADDED (0x13a9) SIEMPRE: solo aporta los NOMBRES de prisión (los
-        // necesita la lista de personajes para mostrar el servidor de cada PJ;
-        // sin esto salía "--"). NO cambia de pantalla.
-        {
-            std::vector<ServidorJuego> servidores = bd_.listarServidores();
-            if (servidores.size() > 255) servidores.resize(255);
-            uint8_t sv[4096]; int si = 0;
-            escribir16(sv, op::SERVERADDED); si = 2;
-            escribir16(sv + si, static_cast<uint16_t>(servidores.size())); si += 2; // count (word)
-            for (const auto& s : servidores) {
-                escribir32(sv + si, s.id); si += 4;
-                sv[si++] = s.flag;
-                escribir32(sv + si, s.extra); si += 4;
-                int n1 = (int)s.nombre.size();  memcpy(sv + si, s.nombre.c_str(),  n1); si += n1; sv[si++] = 0;
-                int n2 = (int)s.nombre2.size(); memcpy(sv + si, s.nombre2.c_str(), n2); si += n2; sv[si++] = 0;
-            }
-            uint8_t m[4200];
-            int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
-            enviarFiable(con, remoto, m, ml);
-            registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
-        }
-
-        // AVAILABLESERVERS (0x13ac) SOLO si NO hay personajes: esta es la que
-        // lleva a la PANTALLA DE CÁRCELES (screen 0xc) para crear el primero. Si
-        // ya hay personajes, NO se envía y el cliente se queda en la lista de
-        // personajes (screen 0xb del LOGINACCEPTED).
-        if (con.numPersonajes == 0) {
-            enviarReclusos(con, remoto);
-            registro::log("   (sin personajes) -> 0x13ac AVAILABLESERVERS (pantalla de cárceles)");
-        } else {
-            registro::log("   (%d personaje(s)) -> lista de personajes (sin pantalla de cárceles)",
-                          con.numPersonajes);
-        }
+        // SERVERADDED (0x13a9): nombres de prisión (los necesita la lista de
+        // personajes para mostrar el servidor de cada PJ). La lista completa con
+        // reclusos (AVAILABLESERVERS) se manda cuando el cliente la PIDE (0x13aa).
+        enviarServerAdded(con, remoto);
+        registro::log("   -> 0x13d5(aceptar)+0x13a9(prisiones)");
+    }
+    // -------------------- PIDE SERVIDORES (0x13aa = GETAVAILABLESERVERS) --------------------
+    // El cliente pide la lista de cárceles (p.ej. al ir a crear personaje) y se
+    // queda "Recibiendo Información de Cárceles..." hasta que respondemos.
+    else if (opcode == op::PIDE_SERVIDORES) {
+        registro::log("   *** GETAVAILABLESERVERS (0x13aa) -> envío lista de cárceles ***");
+        enviarServerAdded(con, remoto);   // nombres
+        enviarReclusos(con, remoto);      // módulos + reclusos (pantalla de cárceles)
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
     // Tras esto el cliente se desconecta del login y se conecta al ServidorMundo.
@@ -522,6 +501,29 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFiable(con, remoto, m, ml);
         registro::log("   *** SELECT (0x139f) -> 0x13f2 ENTERINGGAMEACCEPTED (pj 0) ***");
     }
+}
+
+// ----------------------------------------------------------------------------
+//  Envía SERVERADDED (0x13a9): un nodo por prisión con su nombre. Solo aporta
+//  los nombres (la lista de personajes los necesita para mostrar el servidor).
+// ----------------------------------------------------------------------------
+void ServidorLogin::enviarServerAdded(Conexion& con, const udp::endpoint& remoto) {
+    std::vector<ServidorJuego> servidores = bd_.listarServidores();
+    if (servidores.size() > 255) servidores.resize(255);
+    uint8_t sv[4096]; int si = 0;
+    escribir16(sv, op::SERVERADDED); si = 2;
+    escribir16(sv + si, static_cast<uint16_t>(servidores.size())); si += 2; // count (word)
+    for (const auto& s : servidores) {
+        escribir32(sv + si, s.id); si += 4;
+        sv[si++] = s.flag;
+        escribir32(sv + si, s.extra); si += 4;
+        int n1 = (int)s.nombre.size();  memcpy(sv + si, s.nombre.c_str(),  n1); si += n1; sv[si++] = 0;
+        int n2 = (int)s.nombre2.size(); memcpy(sv + si, s.nombre2.c_str(), n2); si += n2; sv[si++] = 0;
+    }
+    uint8_t m[4200];
+    int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
+    enviarFiable(con, remoto, m, ml);
+    registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
 }
 
 // ----------------------------------------------------------------------------
