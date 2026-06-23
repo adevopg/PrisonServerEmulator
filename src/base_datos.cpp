@@ -173,23 +173,32 @@ InfoClases BaseDatos::cargarClases() {
         }
         mysql_free_result(r);
     }
-    // 4) Habilidades por delito: columnas claras (maximo, inicial, nivel).
-    //    Se traducen a los 4 bytes que espera el cliente:
-    //      h0 = maximo (el cliente lo muestra x1.5; 0xff = la clase no la tiene)
-    //      h1 = inicial (puntos al nivel 1)
-    //      h2 = nivel requerido para entrenar (0 = desde el nivel 1)
-    //      h3 = 0
+    // 4) Habilidades por delito. El manual y el cliente muestran "inicial / maxima",
+    //    con un "Nivel X" delante si la habilidad requiere entrenarse a ese nivel.
+    //    Estructura de skill del cliente (verificada en 0x482a00 / 0x482f00):
+    //      word0 (b0, off+0) = valor INICIAL (a nivel 0)        -> primer numero
+    //      word1 (b1, off+2) = valor MAXIMO (a nivel 100)       -> segundo numero
+    //      byte4 (b2, off+4) = flag de categoria (0 = normal)
+    //      byte5 (b3, off+5) = NIVEL requerido para entrenar    -> "Nivel X"
+    //    OJO: el nivel va en b3 (offset+5), no en b2. Si el nivel de preview es
+    //    menor que b3, el cliente pinta "Nivel X" y la habilidad sale a 0.
+    //      h0 = inicial (0)
+    //      h1 = maximo
+    //      h2 = 0
+    //      h3 = nivel requerido
     std::map<std::pair<uint32_t,int>, std::array<uint8_t,4>> valHab;
     if (MYSQL_RES* r = query("SELECT delito_id, habilidad_id, maximo, inicial, nivel FROM delito_habilidad")) {
         MYSQL_ROW f;
         while ((f = mysql_fetch_row(r))) {
             auto it = idxHab.find((uint32_t)strtoul(f[1], nullptr, 10));
             if (it == idxHab.end()) continue;
+            uint8_t mx  = (uint8_t)strtoul(f[2], nullptr, 10);  // maximo
+            uint8_t niv = (uint8_t)strtoul(f[4], nullptr, 10);  // nivel requerido
             valHab[{(uint32_t)strtoul(f[0],nullptr,10), it->second}] =
-                {(uint8_t)strtoul(f[2],nullptr,10),   // maximo  -> h0
-                 (uint8_t)strtoul(f[3],nullptr,10),   // inicial -> h1
-                 (uint8_t)strtoul(f[4],nullptr,10),   // nivel   -> h2
-                 0};
+                {0,     // word0 = inicial = 0 (empieza sin entrenar)
+                 mx,    // word1 = maximo (tope a nivel 100)
+                 0,     // byte4 = flag normal
+                 niv};  // byte5 = nivel requerido -> "Nivel X"
         }
         mysql_free_result(r);
     }
@@ -208,9 +217,11 @@ InfoClases BaseDatos::cargarClases() {
             }
             for (int h = 0; h < N2; h++) {
                 auto it = valHab.find({did, h});
-                // Sin fila => el delito NO tiene esa habilidad: 0xff = oculta.
+                // Sin fila => el delito NO tiene esa habilidad. Se envía 0 (no 0xff):
+                // 0xff lo remapea el cliente a 0xffff y lo MUESTRA como 65535. Con 0
+                // la habilidad queda a cero (sin barra), igual que en el oficial.
                 d.habilidades.push_back(it != valHab.end() ? it->second
-                                                           : std::array<uint8_t,4>{0xff, 0, 0, 0});
+                                                           : std::array<uint8_t,4>{0, 0, 0, 0});
             }
             info.delitos.push_back(std::move(d));
         }

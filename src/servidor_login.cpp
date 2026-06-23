@@ -203,6 +203,25 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     if (!(plen >= pr::TAM_CABECERA && it != conexiones_.end())) return;
 
     Conexion& con = it->second;
+
+    // El cliente puede AGRUPAR varios mensajes de aplicación en un mismo paquete
+    // (lo vimos: un latido 0x13a1 + GETAVAILABLESERVERS 0x13aa juntos). El payload es:
+    //     [idConexion:4][const:4]  +  N registros  +  registro de longitud 0
+    // y cada registro = [longReg:4][idConexion:4][const:4][appData...], donde
+    // appData empieza por el opcode. Antes solo leíamos el PRIMER registro (offset
+    // fijo 0x14) y nos perdíamos el resto -> hay que procesarlos TODOS.
+    uint8_t* payBase = pay;
+    int      plenTotal = plen;
+    for (int recPos = 8; recPos + 4 <= plenTotal; ) {
+        uint32_t recLen = leer32(payBase + recPos);
+        // longitud 0 (terminador) o registro que no cabe -> fin.
+        if (recLen < 8 || recPos + 4 + (int)recLen > plenTotal) break;
+        // Apuntamos pay/plen a ESTE registro para que los offsets de los handlers
+        // (pay+0x14 = opcode, pay+0x16 = datos) sigan siendo válidos sin tocarlos.
+        pay  = payBase + recPos - 8;
+        plen = (int)recLen + 12;
+        recPos += 4 + (int)recLen;
+
     uint16_t opcode = leer16(pay + 0x14);
 
     // Etiqueta legible de cada opcode que el cliente nos envía, y si lo conocemos.
@@ -223,6 +242,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // poder estudiarlos. Los conocidos no ensucian el log.
     if (!conocido)
         registro::volcadoHex("   datos del opcode desconocido:", pay, plen);
+    // DIAG: un latido normal lleva ~26 bytes de payload. Si llega uno mucho mayor
+    // es que el cliente está mandando OTRA cosa que decodificamos mal -> volcar.
+    else if (opcode == op::LATIDO && plen > 30)
+        registro::volcadoHex("   *** LATIDO ANORMAL (revisar) ***", pay, plen);
 
     // -------------------- LOGIN (0x1388) --------------------
     // Respondemos con la estructura de cuenta (opcode 0x1389) fragmentada.
@@ -253,7 +276,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             registro::log("   *** LOGIN RECHAZADO '%s' -> %s (codigo %u) ***",
                           con.usuario.c_str(), nombreEstado(estado), estadoARechazo(estado));
             enviarRechazo(con, remoto, estado);
-            return;
+            continue;
         }
 
         // La cuenta tiene 3 ranuras de personaje (0x9cd = 7 + 3*0x342). Cargamos
@@ -322,7 +345,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t m[64]; int ml = pr::componerMensajeApp(m, con.idConexion, a, 2);
             enviarFiable(con, remoto, m, ml);
             registro::log("   *** nick '%s' YA EXISTE -> CHARERROR (0x1398) ***", nick);
-            return;
+            continue;
         }
 
         // Guardar en la base de datos (de momento: nick + bloque crudo completo).
@@ -509,6 +532,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFiable(con, remoto, m, ml);
         registro::log("   *** SELECT (0x139f) -> 0x13f2 ENTERINGGAMEACCEPTED (pj 0) ***");
     }
+    } // for (cada registro del payload)
 }
 
 // ----------------------------------------------------------------------------
