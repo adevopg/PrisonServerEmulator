@@ -338,10 +338,11 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         nch[0x6a] = 0;                            // +0x6a estado
         enviarFragmentado(con, remoto, cca, 2 + 1 + 0x342);
         registro::log("   -> CHARCREATED (0x1395) ranura=%d", slot);
-
-        // Sincronizar en tiempo real: reenviar el conteo de reclusos (ya incluye
-        // el personaje recién creado) para que la lista quede actualizada.
-        if (guardado) enviarReclusos(con, remoto);
+        (void)guardado;
+        // OJO: NO reenviar AVAILABLESERVERS aquí. Ese mensaje cambia la pantalla
+        // del cliente a la selección de prisión (screen 0xc) y te sacaría de la
+        // pantalla de personajes tras crear. El conteo de reclusos se recalcula
+        // solo en el próximo login (se cuenta al vuelo).
     }
     // -------------------- LATIDO (0x13a1) -> ACEPTAR + LISTA SERVIDORES --------------------
     else if (opcode == op::LATIDO && con.enviadoLogin && !con.enviadoAceptar) {
