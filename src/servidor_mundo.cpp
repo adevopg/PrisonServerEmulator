@@ -9,11 +9,12 @@
 #include "prison/servidor_mundo.hpp"
 #include "prison/protocolo_sns.hpp"
 #include "prison/opcodes.hpp"
+#include "prison/configuracion.hpp"
 #include "prison/cifrado.hpp"
 #include "prison/utilidades.hpp"
 #include "prison/registro.hpp"
 
-#include <windows.h>   // Sleep, getenv
+#include <windows.h>   // Sleep
 #include <cstring>
 #include <cstdlib>
 #include <string>
@@ -154,13 +155,13 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // -------------------- SPAWN (aparición del jugador) --------------------
     // Cuando el cliente envía PASSDOOR (opcode 0x138e) y SPAWN está activado por
     // entorno, enviamos toda la secuencia de aparición. Sigue en investigación.
-    if (opcode == op::PASSDOOR && !con.enviadoAceptar && getenv("SPAWN")) {
+    if (opcode == op::PASSDOOR && !con.enviadoAceptar && cfg().spawn) {
         con.enviadoAceptar = true;
-        uint32_t pid = getenv("PID") ? (uint32_t)strtol(getenv("PID"), 0, 0) : 1;
+        uint32_t pid = cfg().idJugador;
 
-        // ---- Configuración de sala/mapa/objetos (env ROOM) ----
-        if (getenv("ROOM")) {
-            uint32_t tmpl = getenv("TMPL") ? (uint32_t)strtol(getenv("TMPL"), 0, 0) : 1;
+        // ---- Configuración de sala/mapa/objetos (ROOM) ----
+        if (cfg().room) {
+            uint32_t tmpl = cfg().plantilla;
 
             // SERVERPARAMS (0x139e): reserva globales de sesión + configura los
             // temporizadores de ping. PingTime=0 era el bug (sin ping -> caída).
@@ -179,7 +180,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             // MAPINFO (0x13a5): define plantillas de sala. Payload zlib =
             //   [count:2][ id:4, nombre1\0, nombre2\0, subcount:2 ].
             {
-                const char* mapnm = getenv("MAPNAME") ? getenv("MAPNAME") : "patio";
+                const char* mapnm = cfg().nombreMapa.c_str();
                 uint8_t up[256]; int u = 0;
                 int mnl = (int)strlen(mapnm);
                 escribir16(up + u, 1); u += 2;                  // count = 1 plantilla
@@ -216,8 +217,8 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
             // ROOMPARAMS (opcode 0): sala + mapa.
             {
-                int msel = getenv("MAP") ? (int)strtol(getenv("MAP"), 0, 0) : 0xfa;
-                uint32_t rid = getenv("RID") ? (uint32_t)strtol(getenv("RID"), 0, 0) : 1;
+                int msel = cfg().mapa;
+                uint32_t rid = cfg().idSala;
                 uint8_t r0[4 + 0x30]; memset(r0, 0, sizeof r0);
                 escribir16(r0, op::ROOMPARAMS);  // opcode 0 = ROOMPARAMS
                 escribir16(r0 + 2, 1);      // room_id (cabecera)
@@ -233,9 +234,9 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
         // ---- opcode 2: CREAR jugador local ----
         {
-            const char* nm = getenv("PNAME") ? getenv("PNAME") : "Innamine";
+            const char* nm = cfg().nombreJugador.c_str();
             int L = (int)strlen(nm);
-            int posz = getenv("POS_SZ") ? (int)strtol(getenv("POS_SZ"), 0, 0) : 0x220;
+            int posz = cfg().tamPosicion;
             uint8_t c2[2 + 96 + 8 + 0x280]; memset(c2, 0, sizeof c2); int o = 0;
             escribir16(c2 + o, op::CREAR_JUGADOR); o += 2; // opcode 2
             memcpy(c2 + o, nm, L + 1); o += L + 1;        // nombre + NUL
@@ -250,7 +251,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
 
         // ---- opcode 3: ACTUALIZAR jugador + ENTRAR (puerta = 0xff) ----
         {
-            int pdz = getenv("PD_SZ") ? (int)strtol(getenv("PD_SZ"), 0, 0) : 0x220;
+            int pdz = cfg().tamDatosJug;
             uint8_t c3[2 + 4 + 0x280]; memset(c3, 0, sizeof c3);
             escribir16(c3, op::ENTRAR); // opcode 3
             escribir32(c3 + 2, pid);    // id (clave de búsqueda)
@@ -274,9 +275,9 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // (lo anota en networkdebug.txt). Rango por variables de entorno.
     else if (opcode == op::PASSDOOR && !con.enviadoAceptar) {
         con.enviadoAceptar = true;
-        int lo = getenv("SWEEP_LO") ? (int)strtol(getenv("SWEEP_LO"), 0, 0) : 0x1388;
-        int hi = getenv("SWEEP_HI") ? (int)strtol(getenv("SWEEP_HI"), 0, 0) : 0x1480;
-        int dly = getenv("SWEEP_MS") ? (int)strtol(getenv("SWEEP_MS"), 0, 0) : 250;
+        int lo = cfg().barridoDesde;
+        int hi = cfg().barridoHasta;
+        int dly = cfg().barridoMs;
         registro::log("   [MUNDO] *** BARRIDO 0x%04x..0x%04x (%dms cada uno) ***", lo, hi, dly);
         for (int wop = lo; wop <= hi; wop++) {
             uint8_t a[2 + 16]; escribir16(a, (uint16_t)wop);

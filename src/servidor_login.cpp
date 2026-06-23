@@ -10,11 +10,12 @@
 #include "prison/servidor_login.hpp"
 #include "prison/protocolo_sns.hpp"
 #include "prison/opcodes.hpp"
+#include "prison/configuracion.hpp"
 #include "prison/cifrado.hpp"
 #include "prison/utilidades.hpp"
 #include "prison/registro.hpp"
 
-#include <windows.h>   // Sleep, getenv vía CRT
+#include <windows.h>   // Sleep
 #include <cstring>
 #include <cstdlib>
 #include <string>
@@ -76,8 +77,8 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         c.clave = 0xA5A5A5A5u ^ static_cast<uint32_t>(clave);
         c.fase = Fase::SynRespondido;
         c.usuario = usuario;
-        if (const char* fe = getenv("START_FIELDC"))
-            c.idMensajeTx = static_cast<uint32_t>(atoi(fe) - 1);
+        if (cfg().tieneStartFieldc)
+            c.idMensajeTx = static_cast<uint32_t>(cfg().startFieldc - 1);
 
         // Autenticar contra MySQL.
         Cuenta cuenta = bd_.buscarCuenta(usuario);
@@ -252,12 +253,12 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             enviarFiable(con, remoto, m, ml);
         }
 
-        // Lista de servidores RICA (opcional, env RICH_LIST): nombre + reclusos + .skf, comprimida.
-        if (getenv("RICH_LIST")) {
+        // Lista de servidores RICA (opcional, RICH_LIST): nombre + reclusos + .skf, comprimida.
+        if (cfg().listaRica) {
             uint8_t blob[256]; int bi = 0;
-            const char* nm = getenv("PRISON_NAME"); if (!nm) nm = "La Prision";
+            const char* nm = cfg().nombrePrision.c_str();
             int nl = (int)strlen(nm); memcpy(blob + bi, nm, nl); bi += nl; blob[bi++] = 0;
-            uint32_t reclusos = getenv("RECLUSOS") ? (uint32_t)atoi(getenv("RECLUSOS")) : 42;
+            uint32_t reclusos = cfg().reclusos;
             escribir32(blob + bi, 1);        bi += 4;   // dword0: id
             escribir32(blob + bi, reclusos); bi += 4;   // dword1: reclusos
             escribir32(blob + bi, 100);      bi += 4;   // dword2: máximo
@@ -280,7 +281,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // CLASSINFO (opcional, env CLASSINFO): tabla de clases, comprimida. Ver
         // ingeniería inversa del handler 0x4a4620. Necesario para el preview de
         // selección de prisión (evita null-deref en 0x561b10).
-        if (getenv("CLASSINFO")) {
+        if (cfg().classInfo) {
             const int N0 = 32, N1 = 10, N2 = 0; const char* NM = "Recluso";
             uint8_t blob[8192]; int bl = 0;
             auto putStr = [&](const char* s) {
@@ -379,7 +380,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         registro::log("   *** JUGAR (0x13f1 pj=%u) -> 0x13f2 -> el cliente conecta al mundo 25001 ***", indicePj);
     }
     // -------------------- SELECT (0x139f) -> ENTERINGGAMEACCEPTED (opcional, ENTER_GAME) --------------------
-    else if (opcode == op::SELECCIONAR && con.enviadoLogin && !con.enviadoEntrar && getenv("ENTER_GAME")) {
+    else if (opcode == op::SELECCIONAR && con.enviadoLogin && !con.enviadoEntrar && cfg().enterGame) {
         con.enviadoEntrar = true;
         if (!con.enviadoAceptar) {
             con.enviadoAceptar = true;

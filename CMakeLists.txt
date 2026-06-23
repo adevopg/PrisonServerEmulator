@@ -59,6 +59,7 @@ add_executable(login_server
     src/registro.cpp
     src/cifrado.cpp
     src/protocolo_sns.cpp
+    src/configuracion.cpp
     src/base_datos.cpp
     src/servidor_udp.cpp
     src/servidor_login.cpp
