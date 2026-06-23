@@ -8,6 +8,7 @@
 // ============================================================================
 #include "prison/servidor_mundo.hpp"
 #include "prison/protocolo_sns.hpp"
+#include "prison/opcodes.hpp"
 #include "prison/cifrado.hpp"
 #include "prison/utilidades.hpp"
 #include "prison/registro.hpp"
@@ -138,7 +139,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // lo hacemos, el ping sube y el cliente se desconecta a los ~5s de entrar.
     // El mensaje de control va "envuelto una sola vez", así que su appMsg está
     // en pay+8 (a diferencia de los mensajes >=0x1388 que van en pay+0x14).
-    if (plen >= 18 && leer16(pay + 8) == 9) {
+    if (plen >= 18 && leer16(pay + 8) == op::PING) {
         int amLen = plen - 8; if (amLen > 64) amLen = 64;
         uint8_t am[64]; memcpy(am, pay + 8, amLen);
         // El cliente dibuja el número de ping solo si RTT > 0. En localhost el eco
@@ -153,7 +154,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // -------------------- SPAWN (aparición del jugador) --------------------
     // Cuando el cliente envía PASSDOOR (opcode 0x138e) y SPAWN está activado por
     // entorno, enviamos toda la secuencia de aparición. Sigue en investigación.
-    if (opcode == 0x138e && !con.enviadoAceptar && getenv("SPAWN")) {
+    if (opcode == op::PASSDOOR && !con.enviadoAceptar && getenv("SPAWN")) {
         con.enviadoAceptar = true;
         uint32_t pid = getenv("PID") ? (uint32_t)strtol(getenv("PID"), 0, 0) : 1;
 
@@ -271,7 +272,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // -------------------- BARRIDO DE OPCODES (diagnóstico, sin SPAWN) --------------------
     // Envía opcodes candidatos uno a uno para ver cuáles reconoce el cliente
     // (lo anota en networkdebug.txt). Rango por variables de entorno.
-    else if (opcode == 0x138e && !con.enviadoAceptar) {
+    else if (opcode == op::PASSDOOR && !con.enviadoAceptar) {
         con.enviadoAceptar = true;
         int lo = getenv("SWEEP_LO") ? (int)strtol(getenv("SWEEP_LO"), 0, 0) : 0x1388;
         int hi = getenv("SWEEP_HI") ? (int)strtol(getenv("SWEEP_HI"), 0, 0) : 0x1480;

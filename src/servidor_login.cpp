@@ -9,6 +9,7 @@
 // ============================================================================
 #include "prison/servidor_login.hpp"
 #include "prison/protocolo_sns.hpp"
+#include "prison/opcodes.hpp"
 #include "prison/cifrado.hpp"
 #include "prison/utilidades.hpp"
 #include "prison/registro.hpp"
@@ -175,12 +176,12 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     Conexion& con = it->second;
     uint16_t opcode = leer16(pay + 0x14);
     registro::log("   opcode app = 0x%04x%s", opcode,
-                  opcode == 0x1388 ? " (LOGIN)" : opcode == 0x13a1 ? " (latido)" : "");
+                  opcode == op::LOGIN ? " (LOGIN)" : opcode == op::LATIDO ? " (latido)" : "");
 
     // -------------------- LOGIN (0x1388) --------------------
     // Respondemos con la estructura de cuenta (opcode 0x1389) fragmentada.
     // (El cliente hace `dec` en su dispatch, por eso el handler 0x40a59e es 0x1389.)
-    if (opcode == 0x1388 && !con.enviadoLogin) {
+    if (opcode == op::LOGIN && !con.enviadoLogin) {
         con.enviadoLogin = true;
         registro::log("   *** LOGIN '%s' (%s) -> cuenta 0x1389 (fragmentada) ***",
                       con.usuario.c_str(), con.idCuenta ? "ENCONTRADA" : "DESCONOCIDA");
@@ -212,7 +213,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     // -------------------- CREAR PERSONAJE (0x1394) --------------------
     // El cliente envía nick + atributos + aspecto al pulsar CONTINUAR.
     // Respondemos CHARCREATED (0x1395). El nick va asciiz en pay+0x16.
-    else if (opcode == 0x1394) {
+    else if (opcode == op::CREAR_PERSONAJE) {
         char nick[24] = {0};
         if (plen > 0x16) {
             const char* p = reinterpret_cast<const char*>(pay + 0x16);
@@ -238,7 +239,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         enviarFragmentado(con, remoto, cca, 2 + 1 + 0x342);
     }
     // -------------------- LATIDO (0x13a1) -> ACEPTAR + LISTA SERVIDORES --------------------
-    else if (opcode == 0x13a1 && con.enviadoLogin && !con.enviadoAceptar) {
+    else if (opcode == op::LATIDO && con.enviadoLogin && !con.enviadoAceptar) {
         con.enviadoAceptar = true;
 
         // LOGINACCEPTED (0x13d5 count=0) -> evento 0x482, loginPhase->2
@@ -365,7 +366,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
     // Tras esto el cliente se desconecta del login y se conecta al ServidorMundo.
-    else if (opcode == 0x13f1 && !con.enviadoEntrar) {
+    else if (opcode == op::JUGAR && !con.enviadoEntrar) {
         con.enviadoEntrar = true;
         uint8_t indicePj = (plen > 0x16) ? pay[0x16] : 0;   // personaje elegido
         uint8_t a[2 + 1 + 4];
@@ -378,7 +379,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         registro::log("   *** JUGAR (0x13f1 pj=%u) -> 0x13f2 -> el cliente conecta al mundo 25001 ***", indicePj);
     }
     // -------------------- SELECT (0x139f) -> ENTERINGGAMEACCEPTED (opcional, ENTER_GAME) --------------------
-    else if (opcode == 0x139f && con.enviadoLogin && !con.enviadoEntrar && getenv("ENTER_GAME")) {
+    else if (opcode == op::SELECCIONAR && con.enviadoLogin && !con.enviadoEntrar && getenv("ENTER_GAME")) {
         con.enviadoEntrar = true;
         if (!con.enviadoAceptar) {
             con.enviadoAceptar = true;
