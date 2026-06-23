@@ -281,7 +281,9 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             ch[0x40] = p.clase;                        // +0x40 índice de clase
             escribir32(ch + 0x34, 1000);              // +0x34 pos X (evita div/0 en el render)
             escribir32(ch + 0x38, 1000);              // +0x38 pos Y
-            escribir32(ch + 0x51, 0xFFFFFFFFu);       // +0x51 suprime el auto-enter 0x139f
+            // +0x51 se deja en 0: si fuese -1, el cliente pone [0x5eda49]=1 y eso
+            // DESACTIVA los botones del char-select (p.ej. DESTRUIR). En 0, los
+            // botones se habilitan según el personaje seleccionado.
             escribir32(ch + 0x65, p.servidor);        // +0x65 prisión del personaje (el cliente filtra por aquí)
             ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
             ch[0x6a] = 0;                             // +0x6a estado
