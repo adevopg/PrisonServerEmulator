@@ -262,6 +262,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // cliente muestra CREAR personaje.
         std::vector<Personaje> personajes = bd_.cargarPersonajes(con.cuenta.id);
         if (personajes.size() > 3) personajes.resize(3);
+        con.numPersonajes = (int)personajes.size();   // decide cárceles vs lista de personajes
 
         static uint8_t app[2 + 0x9cd];
         memset(app, 0, sizeof app);
@@ -430,35 +431,41 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             }
         }
 
-        // --- Lista de prisiones: TODO viene de MySQL (tabla game_servers) ---
-        // El cliente admite hasta 255 prisiones; limitamos por seguridad del buffer.
-        std::vector<ServidorJuego> servidores = bd_.listarServidores();
-        if (servidores.size() > 255) servidores.resize(255);
-        registro::log("   prisiones en línea (MySQL) = %zu", servidores.size());
+        // --- Lista de prisiones (pantalla de cárceles, screen 0xc) ---
+        // SOLO se envía si la cuenta NO tiene personajes: así el jugador elige
+        // prisión y crea su primer personaje. Si YA tiene personajes, NO la
+        // enviamos, y el cliente se queda en la lista de personajes (screen 0xb,
+        // que puso LOGINACCEPTED). El reenvío de AVAILABLESERVERS forzaría la
+        // pantalla de cárceles, que es justo lo que NO queremos con personajes.
+        if (con.numPersonajes == 0) {
+            std::vector<ServidorJuego> servidores = bd_.listarServidores();
+            if (servidores.size() > 255) servidores.resize(255);
+            registro::log("   (sin personajes) -> lista de cárceles, %zu prisiones", servidores.size());
 
-        // SERVERADDED (0x13a9): un nodo por prisión. Por cada una el cliente lee
-        //   [id:4][flag:1][extra:4][nombre\0][nombre2\0]  y muestra "nombre nombre2".
-        {
-            uint8_t sv[4096]; int si = 0;
-            escribir16(sv, op::SERVERADDED); si = 2;
-            escribir16(sv + si, static_cast<uint16_t>(servidores.size())); si += 2; // count (word)
-            for (const auto& s : servidores) {
-                escribir32(sv + si, s.id); si += 4;
-                sv[si++] = s.flag;
-                escribir32(sv + si, s.extra); si += 4;
-                int n1 = (int)s.nombre.size();  memcpy(sv + si, s.nombre.c_str(),  n1); si += n1; sv[si++] = 0;
-                int n2 = (int)s.nombre2.size(); memcpy(sv + si, s.nombre2.c_str(), n2); si += n2; sv[si++] = 0;
+            // SERVERADDED (0x13a9): un nodo por prisión [id][flag][extra][nombre][nombre2].
+            {
+                uint8_t sv[4096]; int si = 0;
+                escribir16(sv, op::SERVERADDED); si = 2;
+                escribir16(sv + si, static_cast<uint16_t>(servidores.size())); si += 2; // count (word)
+                for (const auto& s : servidores) {
+                    escribir32(sv + si, s.id); si += 4;
+                    sv[si++] = s.flag;
+                    escribir32(sv + si, s.extra); si += 4;
+                    int n1 = (int)s.nombre.size();  memcpy(sv + si, s.nombre.c_str(),  n1); si += n1; sv[si++] = 0;
+                    int n2 = (int)s.nombre2.size(); memcpy(sv + si, s.nombre2.c_str(), n2); si += n2; sv[si++] = 0;
+                }
+                uint8_t m[4200];
+                int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
             }
-            uint8_t m[4200];
-            int ml = pr::componerMensajeApp(m, con.idConexion, sv, si);
-            enviarFiable(con, remoto, m, ml);
-            registro::log("   -> 0x13a9 SERVERADDED x%zu", servidores.size());
+            // AVAILABLESERVERS (0x13ac): módulos + reclusos (al vuelo). Pone screen 0xc.
+            enviarReclusos(con, remoto);
+            registro::log("   -> 0x13d5(aceptar)+0x13a9+0x13ac (pantalla de cárceles)");
+        } else {
+            registro::log("   (%d personaje(s)) -> lista de personajes (no se envía la lista de cárceles)",
+                          con.numPersonajes);
         }
-
-        // AVAILABLESERVERS (0x13ac): módulos + reclusos (reclusos = nº de personajes
-        // creados en cada prisión, contados al vuelo -> siempre actualizado).
-        enviarReclusos(con, remoto);
-        registro::log("   -> 0x13d5(aceptar)+0x13a9(prisiones)+0x13ac(reclusos)");
     }
     // -------------------- JUGAR (0x13f1) -> ENTERINGGAMEACCEPTED (0x13f2) --------------------
     // Tras esto el cliente se desconecta del login y se conecta al ServidorMundo.

@@ -50,6 +50,7 @@ struct Conexion {
     uint32_t ultimaActividad = 0; // epoch del último paquete recibido (para "cuenta en uso")
     uint32_t prisionSeleccionada = 1; // prisión (game_servers.id) en la que está la cuenta
     uint8_t  moduloSeleccionado  = 1; // módulo de celdas elegido (1..modules)
+    int      numPersonajes       = 0; // nº de personajes de la cuenta (decide cárceles vs personajes)
 };
 
 } // namespace prison
