@@ -146,7 +146,7 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     if (!mysql_) return personajes;
     char consulta[220];
     snprintf(consulta, sizeof consulta,
-             "SELECT slot, nick, sex, class, level, server_id FROM characters "
+             "SELECT slot, nick, sex, class, level, server_id, module FROM characters "
              "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
     if (mysql_query(mysql_, consulta)) return personajes;
     MYSQL_RES* res = mysql_store_result(mysql_);
@@ -160,6 +160,7 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
             p.clase = fila[3] ? static_cast<uint8_t>(atoi(fila[3])) : 0;
             p.nivel    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
             p.servidor = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 1;
+            p.modulo   = fila[6] ? static_cast<uint8_t>(strtoul(fila[6], nullptr, 10)) : 1;
             personajes.push_back(std::move(p));
         }
         mysql_free_result(res);
@@ -167,8 +168,9 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     return personajes;
 }
 
-bool BaseDatos::crearPersonaje(uint32_t idCuenta, uint32_t idServidor, int slot,
-                               const std::string& nick, const uint8_t* datos, int longitudDatos) {
+bool BaseDatos::crearPersonaje(uint32_t idCuenta, uint32_t idServidor, uint8_t modulo,
+                               int slot, const std::string& nick,
+                               const uint8_t* datos, int longitudDatos) {
     if (!mysql_) return false;
 
     // Escapar el nick (texto) y el bloque de datos (binario) para el SQL.
@@ -185,9 +187,9 @@ bool BaseDatos::crearPersonaje(uint32_t idCuenta, uint32_t idServidor, int slot,
         blobEsc.assign(tmp.data(), m);
     }
 
-    std::string q = "INSERT INTO characters (account_id, server_id, slot, nick, appearance) VALUES (";
+    std::string q = "INSERT INTO characters (account_id, server_id, module, slot, nick, appearance) VALUES (";
     q += std::to_string(idCuenta) + ", " + std::to_string(idServidor) + ", " +
-         std::to_string(slot) + ", '" + nickEsc + "', ";
+         std::to_string((unsigned)modulo) + ", " + std::to_string(slot) + ", '" + nickEsc + "', ";
     q += blobEsc.empty() ? "NULL)" : ("'" + blobEsc + "')");
 
     return mysql_query(mysql_, q.c_str()) == 0;

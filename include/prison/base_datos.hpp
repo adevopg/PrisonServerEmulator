@@ -52,6 +52,7 @@ struct Personaje {
     uint8_t     clase    = 0;
     uint32_t    nivel    = 1;
     uint32_t    servidor = 1;  // prisión a la que pertenece (va en +0x65 -> el cliente filtra)
+    uint8_t     modulo   = 1;  // módulo de celdas en el que se creó (1..modules)
 };
 
 // Una "prisión" (servidor de mundo) de la lista de selección. Los campos son
@@ -102,10 +103,12 @@ public:
     // elegida filtrando por ese id; por eso aquí no se filtra por prisión.
     std::vector<Personaje> cargarPersonajes(uint32_t idCuenta);
 
-    // Guarda un personaje nuevo en una prisión. "datos" es el bloque crudo de
-    // aspecto/atributos del cliente (puede ser nullptr). Devuelve true si se insertó.
-    bool crearPersonaje(uint32_t idCuenta, uint32_t idServidor, int slot,
-                        const std::string& nick, const uint8_t* datos, int longitudDatos);
+    // Guarda un personaje nuevo en una prisión y un módulo. "datos" es el bloque
+    // crudo de aspecto/atributos del cliente (puede ser nullptr). Devuelve true
+    // si se insertó.
+    bool crearPersonaje(uint32_t idCuenta, uint32_t idServidor, uint8_t modulo,
+                        int slot, const std::string& nick,
+                        const uint8_t* datos, int longitudDatos);
 
 private:
     MYSQL* mysql_ = nullptr;

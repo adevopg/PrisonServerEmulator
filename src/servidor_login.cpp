@@ -314,10 +314,10 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         bool guardado = false;
         if (con.cuenta.id) {
             slot = bd_.contarPersonajes(con.cuenta.id);
-            guardado = bd_.crearPersonaje(con.cuenta.id, idServidor, slot, nick,
-                                          datosCrear, longCrear > 1024 ? 1024 : longCrear);
-            registro::log("   -> guardar personaje en BD: %s (cuenta=%u prisión=%u slot=%d)",
-                          guardado ? "OK" : "FALLÓ", con.cuenta.id, idServidor, slot);
+            guardado = bd_.crearPersonaje(con.cuenta.id, idServidor, con.moduloSeleccionado,
+                                          slot, nick, datosCrear, longCrear > 1024 ? 1024 : longCrear);
+            registro::log("   -> guardar personaje en BD: %s (cuenta=%u prisión=%u módulo=%u slot=%d)",
+                          guardado ? "OK" : "FALLÓ", con.cuenta.id, idServidor, con.moduloSeleccionado, slot);
         } else {
             registro::log("   (sin idCuenta válido: no se guarda en BD)");
         }
