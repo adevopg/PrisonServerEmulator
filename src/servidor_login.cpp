@@ -526,14 +526,20 @@ EstadoCuenta ServidorLogin::evaluarEstado(const Conexion& con,
         return EstadoCuenta::BaneadaTemporal;
 
     // 5) Contraseña.
-    //    OJO: el cliente "sala" el hash cada sesión, así que SOLO validamos si lo
-    //    pides con EXIGIR_PASSWORD (y entonces con comparación tolerante a la sal).
-    //    Por defecto NO se rechaza por contraseña: solo se registra el hash.
-    if (cfg().exigirContrasena) {
-        if (c.hashContrasena.empty())
-            return EstadoCuenta::ContrasenaIncorrecta;   // sin referencia para comparar
+    //    El cliente "sala" el hash cada sesión: cambian los bytes en las
+    //    posiciones 0,4,8,... pero el resto (15 de 21) son estables para una
+    //    misma contraseña, y la LONGITUD cambia con la contraseña. Por eso
+    //    comparamos con contrasenaCoincide(), que ignora los bytes salados:
+    //    una contraseña correcta coincide en los bytes estables; una incorrecta
+    //    cambia de longitud o de bytes estables -> se rechaza.
+    if (!c.hashContrasena.empty()) {
+        // Hay hash de referencia en la base de datos: validamos SIEMPRE.
         if (!contrasenaCoincide(hashRecibidoHex, c.hashContrasena))
             return EstadoCuenta::ContrasenaIncorrecta;
+    } else if (cfg().exigirContrasena) {
+        // Sin hash guardado: solo rechazamos si exiges contraseña a todas las
+        // cuentas (si no, se permite y ya se registró el hash para guardarlo).
+        return EstadoCuenta::ContrasenaIncorrecta;
     }
 
     // 6) Tiempo de juego / suscripción caducada.
