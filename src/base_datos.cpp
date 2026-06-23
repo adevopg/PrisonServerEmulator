@@ -130,6 +130,31 @@ int BaseDatos::contarPersonajes(uint32_t idCuenta) {
     return n;
 }
 
+std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
+    std::vector<Personaje> personajes;
+    if (!mysql_) return personajes;
+    char consulta[200];
+    snprintf(consulta, sizeof consulta,
+             "SELECT slot, nick, sex, class, level FROM characters "
+             "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
+    if (mysql_query(mysql_, consulta)) return personajes;
+    MYSQL_RES* res = mysql_store_result(mysql_);
+    if (res) {
+        MYSQL_ROW fila;
+        while ((fila = mysql_fetch_row(res)) != nullptr) {
+            Personaje p;
+            p.slot  = fila[0] ? atoi(fila[0]) : 0;
+            p.nick  = fila[1] ? fila[1] : "";
+            p.sexo  = fila[2] ? static_cast<uint8_t>(atoi(fila[2])) : 0;
+            p.clase = fila[3] ? static_cast<uint8_t>(atoi(fila[3])) : 0;
+            p.nivel = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
+            personajes.push_back(std::move(p));
+        }
+        mysql_free_result(res);
+    }
+    return personajes;
+}
+
 bool BaseDatos::crearPersonaje(uint32_t idCuenta, int slot, const std::string& nick,
                                const uint8_t* datos, int longitudDatos) {
     if (!mysql_) return false;

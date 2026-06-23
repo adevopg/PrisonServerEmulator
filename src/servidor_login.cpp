@@ -248,31 +248,37 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             return;
         }
 
-        registro::log("   *** LOGIN '%s' OK -> cuenta 0x1389 (fragmentada) ***",
-                      con.usuario.c_str());
+        // La cuenta tiene 3 ranuras de personaje (0x9cd = 7 + 3*0x342). Cargamos
+        // los personajes REALES de MySQL. Si la cuenta tiene 0, el cliente muestra
+        // la pantalla de CREAR personaje (no la de selección).
+        std::vector<Personaje> personajes = bd_.cargarPersonajes(con.cuenta.id);
+        if (personajes.size() > 3) personajes.resize(3);
 
         static uint8_t app[2 + 0x9cd];
         memset(app, 0, sizeof app);
         escribir16(app, op::CUENTA);                            // handler de cuenta 0x40a59e
         escribir32(app + 2, con.idCuenta ? con.idCuenta : 1);   // idCuenta en struct[0]
-        app[2 + 4] = 1;                                         // struct+4 = nº de personajes = 1
+        app[2 + 4] = static_cast<uint8_t>(personajes.size());   // struct+4 = nº de personajes
 
-        // --- Personaje en la ranura 0 (real, para que la lista lo muestre) ---
-        // Offsets relativos al slot del personaje (render char-select 0x5482ff).
-        uint8_t* ch = app + 2 + 7;                  // base del slot 0 del personaje
-        ch[0x00] = 1;                               // +0 = marca "existe" (!=0)
-        const char* nombrePj = "Innamine";
-        memcpy(ch + 2, nombrePj, strlen(nombrePj)); // +2 = NOMBRE (asciiz)
-        ch[0x29] = 0;                               // +0x29 = flag selección de nombre de clase
-        ch[0x40] = 0;                               // +0x40 = índice de clase (0 -> "Recluso")
-        escribir32(ch + 0x34, 1000);               // +0x34 = pos X (el render divide entre [+0x34]*10; 0 -> crash)
-        escribir32(ch + 0x38, 1000);               // +0x38 = pos Y
-        escribir32(ch + 0x51, 0xFFFFFFFFu);        // +0x51 -> suprime el auto-enter 0x139f
-        escribir32(ch + 0x65, 1);                  // +0x65 = id de prisión/servidor (= game_servers id 1)
-        ch[0x69] = 10;                             // +0x69 = nivel (se muestra +1 = 11)
-        ch[0x6a] = 0;                              // +0x6a = estado/tipo (0..3)
-        // +0x6d (nº de objetos) queda 0 -> sin arrays de inventario.
+        // Rellenar cada ranura con su personaje (offsets del render 0x5482ff).
+        for (const auto& p : personajes) {
+            int s = p.slot; if (s < 0 || s > 2) s = 0;
+            uint8_t* ch = app + 2 + 7 + s * 0x342;     // base de la ranura s
+            ch[0x00] = 1;                              // +0 existe
+            size_t nl = p.nick.size() > 0x1f ? 0x1f : p.nick.size();
+            memcpy(ch + 2, p.nick.c_str(), nl);        // +2 nombre
+            ch[0x29] = 0;                              // +0x29 flag selección de clase
+            ch[0x40] = p.clase;                        // +0x40 índice de clase
+            escribir32(ch + 0x34, 1000);              // +0x34 pos X (evita div/0 en el render)
+            escribir32(ch + 0x38, 1000);              // +0x38 pos Y
+            escribir32(ch + 0x51, 0xFFFFFFFFu);       // +0x51 suprime el auto-enter 0x139f
+            escribir32(ch + 0x65, 1);                 // +0x65 id de prisión
+            ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
+            ch[0x6a] = 0;                             // +0x6a estado
+        }
 
+        registro::log("   *** LOGIN '%s' OK -> %zu personaje(s) (cuenta 0x1389) ***",
+                      con.usuario.c_str(), personajes.size());
         enviarFragmentado(con, remoto, app, 2 + 0x9cd);
     }
     // -------------------- CREAR PERSONAJE (0x1394) --------------------

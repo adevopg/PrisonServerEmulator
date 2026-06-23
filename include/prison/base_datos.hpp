@@ -44,6 +44,15 @@ struct Cuenta {
     uint32_t    suscripcionHasta = 0; // epoch de fin de suscripción (0 = ilimitada)
 };
 
+// Un personaje guardado (para mostrarlo en la pantalla de selección).
+struct Personaje {
+    int         slot  = 0;
+    std::string nick;
+    uint8_t     sexo  = 0;
+    uint8_t     clase = 0;
+    uint32_t    nivel = 1;
+};
+
 // Una "prisión" (servidor de mundo) de la lista de selección. Los campos son
 // EXACTAMENTE los que el cliente lee en SERVERADDED (0x13a9) y AVAILABLESERVERS
 // (0x13ac): id, flag, extra, nombre, nombre2 (se muestra "nombre nombre2") y la
@@ -81,6 +90,9 @@ public:
 
     // Cuántos personajes (no borrados) tiene la cuenta.
     int contarPersonajes(uint32_t idCuenta);
+
+    // Carga los personajes (no borrados) de la cuenta, ordenados por ranura.
+    std::vector<Personaje> cargarPersonajes(uint32_t idCuenta);
 
     // Guarda un personaje nuevo. "datos" es el bloque crudo de aspecto/atributos
     // que envía el cliente (puede ser nullptr). Devuelve true si se insertó.
