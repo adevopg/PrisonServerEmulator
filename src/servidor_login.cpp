@@ -274,17 +274,24 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         for (const auto& p : personajes) {
             int s = p.slot; if (s < 0 || s > 2) s = 0;
             uint8_t* ch = app + 2 + 7 + s * 0x342;     // base de la ranura s
+
+            // Reproducir el bloque de creación: empieza por el nick, igual que el
+            // slot en +2, así reconstruimos el personaje COMPLETO (atributos,
+            // aspecto...) y el preview carga del todo (necesario para DESTRUIR).
+            if (!p.datos.empty()) {
+                size_t n = p.datos.size() > 0x340 ? 0x340 : p.datos.size();
+                memcpy(ch + 2, p.datos.data(), n);
+            } else {
+                size_t nl = p.nick.size() > 0x1f ? 0x1f : p.nick.size();
+                memcpy(ch + 2, p.nick.c_str(), nl);
+            }
+
+            // Campos clave POR ENCIMA del blob (seguridad y consistencia).
             ch[0x00] = 1;                              // +0 existe
-            size_t nl = p.nick.size() > 0x1f ? 0x1f : p.nick.size();
-            memcpy(ch + 2, p.nick.c_str(), nl);        // +2 nombre
-            ch[0x29] = 0;                              // +0x29 flag selección de clase
             ch[0x40] = p.clase;                        // +0x40 índice de clase
             escribir32(ch + 0x34, 1000);              // +0x34 pos X (evita div/0 en el render)
             escribir32(ch + 0x38, 1000);              // +0x38 pos Y
-            // +0x51 se deja en 0: si fuese -1, el cliente pone [0x5eda49]=1 y eso
-            // DESACTIVA los botones del char-select (p.ej. DESTRUIR). En 0, los
-            // botones se habilitan según el personaje seleccionado.
-            escribir32(ch + 0x65, p.servidor);        // +0x65 prisión del personaje (el cliente filtra por aquí)
+            escribir32(ch + 0x65, p.servidor);        // +0x65 prisión (el cliente filtra por aquí)
             ch[0x69] = static_cast<uint8_t>(p.nivel); // +0x69 nivel (se muestra +1)
             ch[0x6a] = 0;                             // +0x6a estado
         }

@@ -70,6 +70,7 @@ struct Personaje {
     uint32_t    nivel    = 1;
     uint32_t    servidor = 1;  // prisión a la que pertenece (va en +0x65 -> el cliente filtra)
     uint8_t     modulo   = 1;  // módulo de celdas en el que se creó (1..modules)
+    std::vector<uint8_t> datos; // bloque crudo de creación (appearance) para reconstruir el slot
 };
 
 // Una "prisión" (servidor de mundo) de la lista de selección. Los campos son

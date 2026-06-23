@@ -231,7 +231,7 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
     if (!mysql_) return personajes;
     char consulta[220];
     snprintf(consulta, sizeof consulta,
-             "SELECT slot, nick, sex, class, level, server_id, module FROM characters "
+             "SELECT slot, nick, sex, class, level, server_id, module, appearance FROM characters "
              "WHERE account_id=%u AND deleted=0 ORDER BY slot", idCuenta);
     if (mysql_query(mysql_, consulta)) return personajes;
     MYSQL_RES* res = mysql_store_result(mysql_);
@@ -246,6 +246,10 @@ std::vector<Personaje> BaseDatos::cargarPersonajes(uint32_t idCuenta) {
             p.nivel    = fila[4] ? static_cast<uint32_t>(strtoul(fila[4], nullptr, 10)) : 1;
             p.servidor = fila[5] ? static_cast<uint32_t>(strtoul(fila[5], nullptr, 10)) : 1;
             p.modulo   = fila[6] ? static_cast<uint8_t>(strtoul(fila[6], nullptr, 10)) : 1;
+            // appearance es binario (puede tener nulls): usar la longitud real.
+            unsigned long* lens = mysql_fetch_lengths(res);
+            if (fila[7] && lens && lens[7] > 0)
+                p.datos.assign(fila[7], fila[7] + lens[7]);
             personajes.push_back(std::move(p));
         }
         mysql_free_result(res);
