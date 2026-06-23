@@ -45,8 +45,9 @@ src/                       IMPLEMENTACIÓN (.cpp) — cómo lo hace cada módulo
   servidor_udp.cpp / servidor_login.cpp / servidor_mundo.cpp / servidor_updates.cpp
   diag_capture.cpp           Herramienta de captura (UDP+TCP, volcado hex)
 
-sql/01_schema.sql          Esquema (accounts, characters, game_servers)
-sql/02_seed.sql            Cuenta innapmine + servidor de juego local
+sql/01_schema.sql          Esquema mínimo (solo accounts y game_servers, lo que usa el servidor)
+sql/02_seed.sql            Cuenta innapmine (con hash) + servidor de juego local
+sql/04_limpieza.sql        Quita de una BD vieja las columnas/tablas no usadas
 analysis/*.py              Scripts de desensamblado (pefile + capstone)
 legacy/                    El servidor antiguo (un solo archivo) como referencia
 build/                     Carpeta de compilación (la genera CMake)
