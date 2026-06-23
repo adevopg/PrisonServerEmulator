@@ -91,6 +91,18 @@ void ServidorMundo::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         return;
     }
 
+    // Tipo 4 = cierre (FIN) -> responder tipo 5 (FIN-ACK), igual que el login.
+    if (esHandshake && tipo == 4) {
+        uint8_t r[64];
+        int len = (n < static_cast<int>(sizeof r)) ? n : static_cast<int>(sizeof r);
+        memcpy(r, buf, len);
+        escribir16(r + pr::OFF_TIPO, 5);
+        enviar(r, len, remoto);
+        conexiones_.erase(clave);
+        registro::log("   [MUNDO] handshake tipo4 (FIN) -> tipo5 (FIN-ACK), cierro conexión");
+        return;
+    }
+
     if (esHandshake) return;
 
     // ===================== FASE DE DATOS =====================

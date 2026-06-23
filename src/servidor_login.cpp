@@ -130,17 +130,22 @@ void ServidorLogin::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         return;
     }
 
-    // Tipo 4 = el cliente CIERRA/REINICIA la conexión (DISCONNECT de transporte).
-    // Lo envía, por ejemplo, tras un rechazo de login. Limpiamos su estado para
-    // no dejar conexiones colgadas (el cliente deja de reintentar al cerrarse).
+    // Tipo 4 = el cliente CIERRA la conexión (FIN de transporte). El protocolo
+    // SNS responde con tipo 5 (FIN-ACK): así el cliente da el cierre por
+    // confirmado y DEJA de reintentar (antes no le contestábamos y reenviaba
+    // ~10 veces). Respondemos copiando su paquete y cambiando el tipo a 5.
     if (esHandshake && tipo == 4) {
+        uint8_t r[64];
+        int len = (n < static_cast<int>(sizeof r)) ? n : static_cast<int>(sizeof r);
+        memcpy(r, buf, len);
+        escribir16(r + pr::OFF_TIPO, 5);   // tipo 5 = confirmación de cierre (FIN-ACK)
+        enviar(r, len, remoto);
+
         auto it = conexiones_.find(clave);
         if (it != conexiones_.end()) {
-            registro::log("   handshake tipo4 (DISCONNECT) -> cierro conexión usuario='%s'",
+            registro::log("   handshake tipo4 (FIN) usuario='%s' -> tipo5 (FIN-ACK), cierro conexión",
                           it->second.usuario.c_str());
             conexiones_.erase(it);
-        } else {
-            registro::log("   handshake tipo4 (DISCONNECT) de conexión ya cerrada");
         }
         return;
     }
