@@ -386,14 +386,26 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
         // ingeniería inversa del handler 0x4a4620. Necesario para el preview de
         // selección de prisión (evita null-deref en 0x561b10).
         if (cfg().classInfo) {
-            // Los 10 DELITOS reales de "La Prisión" (clases que el jugador elige
+            // Los 12 DELITOS reales de "La Prisión" (clases que el jugador elige
             // al crear personaje). El orden = índice de clase (char +0x40).
-            static const char* DELITOS[] = {
-                "Mercenario", "Asesino en serie", "Asesino a sueldo", "Hacker",
-                "Politico corrupto", "Timador", "Ladron", "Narcotraficante",
-                "Atracador", "Mafioso"
+            // Cada uno tiene nombre MASCULINO y FEMENINO; el cliente muestra el
+            // que toca según el sexo del personaje.
+            struct Delito { const char* masculino; const char* femenino; };
+            static const Delito DELITOS[] = {
+                {"Mercenario",        "Mercenaria"},
+                {"Asesino en serie",  "Asesina en serie"},
+                {"Asesino a sueldo",  "Asesina a sueldo"},
+                {"Hacker",            "Hacker"},
+                {"Politico corrupto", "Politica corrupta"},
+                {"Timador",           "Timadora"},
+                {"Ladron",            "Ladrona"},
+                {"Narcotraficante",   "Narcotraficante"},
+                {"Atracador",         "Atracadora"},
+                {"Mafioso",           "Mafiosa"},
+                {"Canibal",           "Canibal"},
+                {"Pandillero",        "Pandillera"},
             };
-            const int N0 = (int)(sizeof(DELITOS) / sizeof(DELITOS[0])); // 10 delitos
+            const int N0 = (int)(sizeof(DELITOS) / sizeof(DELITOS[0])); // 12 delitos
             const int N1 = 10, N2 = 0;                                  // N1 atributos (genéricos)
             uint8_t blob[8192]; int bl = 0;
             auto putStr = [&](const char* s) {
@@ -405,8 +417,8 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             char an[16];
             for (int i = 0; i < N1; i++) { snprintf(an, sizeof an, "Atrib%d", i); putStr(an); }
             for (int c = 0; c < N0; c++) {
-                putStr(DELITOS[c]);               // -> entry+4 (nombre mostrado del delito)
-                putStr(DELITOS[c]);               // -> entry+0 (nombre alterno)
+                putStr(DELITOS[c].femenino);      // -> entry+4 (nombre, variante femenina)
+                putStr(DELITOS[c].masculino);     // -> entry+0 (nombre, variante masculina)
                 putStr("");                       // -> entry+8 (vacío)
                 memset(blob + bl, 0, 20); bl += 20;
                 for (int a = 0; a < N1; a++) { blob[bl++] = 50; blob[bl++] = 50; } // valores de atributo
