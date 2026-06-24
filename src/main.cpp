@@ -43,6 +43,7 @@ enum {
     // etiquetas de titulo (a la izquierda de cada campo hundido)
     ID_T_UPTIME = 1030, ID_T_NUMCLI, ID_T_NUMROOM, ID_T_PEAK, ID_T_MEMUSED, ID_T_MEMDELTA,
     ID_T_PLAYERS = 1040,
+    ID_INPUT   = 1050,   // barra de comandos (sobre Status)
     ID_TIMER   = 1,
 };
 
@@ -55,6 +56,8 @@ static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
 static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros (Status/Memory)
 static HWND  g_grpConsole = nullptr, g_grpPlayers = nullptr; // recuadros (Console/Players)
 static HWND  g_carcel = nullptr;                           // nombre de la carcel (campo)
+static HWND  g_input = nullptr;                            // barra de comandos (editable)
+static WNDPROC g_inputProc = nullptr;                      // proc original del campo
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
 static size_t    g_memBase = 0;       // memoria base para el delta
@@ -117,6 +120,21 @@ static void appendConsola(const std::vector<std::string>& lineas) {
         SendMessageA(g_console, EM_SETSEL, len, len);
     }
     SendMessageA(g_console, WM_VSCROLL, SB_BOTTOM, 0);
+}
+
+// Subclase del campo de comandos: al pulsar Enter, manda lo escrito a la
+// consola (y al archivo de log) y limpia el campo.
+static LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    if (m == WM_CHAR && (w == '\r' || w == '\n')) {
+        char buf[512];
+        GetWindowTextA(h, buf, sizeof buf);
+        if (buf[0]) {
+            registro::log("> %s", buf);   // aparece en la consola y en el log
+            SetWindowTextA(h, "");
+        }
+        return 0;                          // se traga el Enter (sin pitido)
+    }
+    return CallWindowProcA(g_inputProc, h, m, w, l);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +225,13 @@ static void crearControles(HWND hwnd) {
     HWND rb = CreateWindowExA(0, "BUTTON", "Reset Memory Delta", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         0, 0, 150, 22, hwnd, (HMENU)ID_RESETDELTA, nullptr, nullptr);
     SendMessageA(rb, WM_SETFONT, (WPARAM)g_font, TRUE);
+
+    // Barra de comandos (editable) encima de Status, como en la foto.
+    g_input = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+        WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+        0, 0, 10, 20, hwnd, (HMENU)ID_INPUT, nullptr, nullptr);
+    SendMessageA(g_input, WM_SETFONT, (WPARAM)g_fontMono, TRUE);
+    g_inputProc = (WNDPROC)SetWindowLongPtrA(g_input, GWLP_WNDPROC, (LONG_PTR)InputProc);
 }
 
 // Reubica los controles segun el tamano de la ventana.
@@ -218,8 +243,9 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
+    int inputH  = 26;                       // franja de la barra de comandos (sobre Status)
     int topY = 4;
-    int topH = H - bottomH - topY - 4;     // alto de los recuadros Console/Players
+    int topH = H - bottomH - inputH - topY - 6;   // alto de los recuadros Console/Players
     if (topH < 80) topH = 80;
     int half = (W - 24) / 2;
 
@@ -250,8 +276,12 @@ static void colocar(HWND hwnd) {
         ListView_SetColumnWidth(g_players, 4, ultima);
     }
 
+    // Barra de comandos (editable) JUSTO ENCIMA de Status/Memory.
+    int inputY = topY + topH + 4;
+    SetWindowPos(g_input, nullptr, 8, inputY, W - 16, 20, SWP_NOZORDER);
+
     // Recuadros Status / Memory (con sus controles dentro).
-    int gy = topY + topH + 6;           // borde superior de los recuadros
+    int gy = inputY + inputH;           // borde superior de los recuadros
     int gh = bottomH - 12;              // alto del recuadro
     int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
