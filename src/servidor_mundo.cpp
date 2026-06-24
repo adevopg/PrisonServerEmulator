@@ -67,22 +67,47 @@ void ServidorMundo::prepararContenido() {
     escribir32(objInfo_.data() + 6, (uint32_t)zl);  // tamano comprimido
     memcpy   (objInfo_.data() + 10, z, zl);
 
-    // Logs al estilo del servidor original.
     registro::log("Uncompressed Objectinfo size %d", o);
     registro::log("Compressed Objectinfo size %d", zl);
     registro::log("Objectinfo creado.");
 
-    // ---- COSMÉTICO ----
-    // El servidor original tambien carga supplyinfo, botinfos, rutas y modulos
-    // desde sus ficheros de datos al arrancar. Nuestra implementacion NO usa
-    // esos subsistemas todavia; estas lineas se registran solo para que la
-    // consola se vea como la del original (los numeros son los del original,
-    // no medidas reales). Si algun dia cargamos esos datos, se reemplazan por
-    // tamanos reales calculados aqui.
-    registro::log("Uncompressed supplyinfo size %d", 184091);
-    registro::log("Compressed supplyinfo size %d",   184091);
-    registro::log("Uncompressed botinfos size %d",   171399);
-    registro::log("Compressed botinfos size %d",     51021);
+    // ---- Helper: envuelve un buffer (ya descomprimido) como mensaje de tabla
+    // de sala [opcode:2][uncompSize:4][compSize:4][zlib] y lo cachea. Devuelve
+    // (uncomp, comp) para los logs. Mismo formato/decompresor que OBJECTINFO. ----
+    auto construir = [](std::vector<uint8_t>& dst, uint16_t opcode,
+                        const uint8_t* datos, int nd) -> std::pair<int,int> {
+        uint8_t zz[4096];
+        int zc = cifrado::comprimirZlib(zz, datos, nd);
+        dst.resize(10 + zc);
+        escribir16(dst.data(),     opcode);
+        escribir32(dst.data() + 2, (uint32_t)nd);
+        escribir32(dst.data() + 6, (uint32_t)zc);
+        memcpy   (dst.data() + 10, zz, zc);
+        return {nd, zc};
+    };
+
+    // ---- SUPPLIESINFO (0x13a6): tabla vacia. El parser 0x4a0000 lee el numero
+    // de entradas en el word de offset 2; con 0 no recorre nada. (4 bytes) ----
+    {
+        uint8_t sup[4] = {0, 0, 0, 0};   // [word0=0][count=0]
+        auto sz = construir(suppliesInfo_, op::SUPPLIESINFO, sup, sizeof sup);
+        registro::log("Uncompressed supplyinfo size %d", sz.first);
+        registro::log("Compressed supplyinfo size %d",   sz.second);
+    }
+
+    // ---- BOTSINFO/NPCInfo (0x13a7): tabla vacia. El parser 0x4a03c0 lee el
+    // numero de NPCs en el word de offset 0; con 0 no recorre nada. (2 bytes) ----
+    {
+        uint8_t bot[2] = {0, 0};         // [count=0]
+        auto sz = construir(botsInfo_, op::BOTSINFO, bot, sizeof bot);
+        registro::log("Uncompressed botinfos size %d", sz.first);
+        registro::log("Compressed botinfos size %d",   sz.second);
+    }
+
+    // ---- COSMÉTICO (no es red): "rutas" es el pathfinding interno del servidor
+    // y "modulos" los carga el propio cliente de sus ficheros locales
+    // (DATA\NUEVO\MAPA\MODULO*.pcx). No hay datos que enviar; se registran para
+    // que la consola se parezca a la del servidor original. ----
     registro::log("Cargando 1645 rutas...");
     registro::log("Rutas cargadas.");
     registro::log("Creando modulos...");
@@ -286,6 +311,29 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 enviarFiable(con, remoto, m, ml);
                 registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 enviado (%d bytes) ***",
                               (int)objInfo_.size());
+                Sleep(80);
+            }
+
+            // BOTSINFO (0x13a7) y SUPPLIESINFO (0x13a6): tablas vacias pero
+            // VALIDAS (0 NPCs / 0 supplies). El cliente las parsea de verdad
+            // ("NPCs Info leeched [0]"). Cacheadas en prepararContenido().
+            {
+                if (botsInfo_.empty()) prepararContenido();
+                uint8_t m[256];
+                int ml = pr::componerMensajeApp(m, con.idConexion,
+                                                botsInfo_.data(), (int)botsInfo_.size());
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   [MUNDO] *** BOTSINFO 0x13a7 enviado (%d bytes) ***",
+                              (int)botsInfo_.size());
+                Sleep(80);
+            }
+            {
+                uint8_t m[256];
+                int ml = pr::componerMensajeApp(m, con.idConexion,
+                                                suppliesInfo_.data(), (int)suppliesInfo_.size());
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   [MUNDO] *** SUPPLIESINFO 0x13a6 enviado (%d bytes) ***",
+                              (int)suppliesInfo_.size());
                 Sleep(80);
             }
 

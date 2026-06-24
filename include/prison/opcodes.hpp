@@ -76,8 +76,16 @@ enum OpcodeMundoControl : uint16_t {
 enum OpcodeMundo : uint16_t {
     PASSDOOR    = 0x138e, // (cliente->servidor) el cliente cruza la puerta de entrada
     SERVERPARAMS = 0x139e, // parámetros de sesión + temporizadores de ping
-    MAPINFO     = 0x13a5, // definición de mapas/plantillas (comprimido zlib)
-    OBJECTINFO  = 0x13a8, // tabla de objetos/items (comprimido zlib)
+    // Tablas de datos de sala (todas: [opcode:2][uncompSize:4][compSize:4][zlib]).
+    // El cliente las despacha restando 0x1388 al opcode (handler 0x4b4839):
+    //   0x13a4-0x1388=0x1c BOXESINFO, 0x13a5=0x1d MAPINFO, 0x13a6=0x1e SUPPLIESINFO,
+    //   0x13a7=0x1f BOTSINFO(NPCInfo), 0x13a8=0x20 OBJECTSINFO, 0x14ee=0x166 QUESTSINFO.
+    BOXESINFO   = 0x13a4, // tabla de cajas
+    MAPINFO     = 0x13a5, // definición de mapas/plantillas
+    SUPPLIESINFO= 0x13a6, // tabla de "supplies" (vendedores/loot)  -> parser 0x4a0000
+    BOTSINFO    = 0x13a7, // tabla de NPCs/bots (NPCInfo)            -> parser 0x4a03c0
+    OBJECTINFO  = 0x13a8, // tabla de objetos/items                  -> parser tipo objtable
+    QUESTSINFO  = 0x14ee, // tabla de misiones
 };
 
 // ===========================================================================

@@ -49,9 +49,11 @@ private:
     std::map<uint64_t, Conexion> conexiones_;
     uint32_t siguienteId_ = 0x20000001;
 
-    // OBJECTINFO ya construido (opcode + tamanos + zlib), listo para enviar a
-    // cada cliente. Se rellena en prepararContenido().
-    std::vector<uint8_t> objInfo_;
+    // Tablas de sala ya construidas (opcode + tamanos + zlib), listas para
+    // enviar a cada cliente. Se rellenan en prepararContenido().
+    std::vector<uint8_t> objInfo_;       // OBJECTSINFO (0x13a8) con los objetos
+    std::vector<uint8_t> botsInfo_;      // BOTSINFO   (0x13a7) tabla vacia (0 NPCs)
+    std::vector<uint8_t> suppliesInfo_;  // SUPPLIESINFO (0x13a6) tabla vacia (0 supplies)
 };
 
 } // namespace prison
