@@ -52,7 +52,8 @@ enum {
 static HWND  g_console = nullptr, g_players = nullptr;
 static HWND  g_upTime = nullptr, g_numCli = nullptr, g_numRoom = nullptr, g_peak = nullptr;
 static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
-static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros
+static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros (Status/Memory)
+static HWND  g_grpConsole = nullptr, g_grpPlayers = nullptr; // recuadros (Console/Players)
 static HWND  g_carcel = nullptr;                           // nombre de la carcel (campo)
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
@@ -140,9 +141,13 @@ static void crearControles(HWND hwnd) {
     g_grpMem = CreateWindowExA(0, "BUTTON", "Memory", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
     SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
-
-    etiqueta(hwnd, "Console", 0, 8, 6, 60, 16);
-    etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
+    // Recuadros Console / Players: el titulo arriba-izquierda y el borde rodea el panel.
+    g_grpConsole = CreateWindowExA(0, "BUTTON", "Console", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+        0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
+    SendMessageA(g_grpConsole, WM_SETFONT, (WPARAM)g_font, TRUE);
+    g_grpPlayers = CreateWindowExA(0, "BUTTON", "Players", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+        0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
+    SendMessageA(g_grpPlayers, WM_SETFONT, (WPARAM)g_font, TRUE);
 
     // Nombre de la carcel: solo hay una, asi que es texto fijo (no desplegable).
     // Va JUSTO DEBAJO del texto "Console", en un campo con borde (como antes).
@@ -213,26 +218,40 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int paneTop = 50;                   // deja sitio para el campo de la carcel bajo "Console"
-    int paneH = H - bottomH - paneTop - 6;
-    if (paneH < 60) paneH = 60;
+    int topY = 4;
+    int topH = H - bottomH - topY - 4;     // alto de los recuadros Console/Players
+    if (topH < 80) topH = 80;
     int half = (W - 24) / 2;
-    pon(ID_T_PLAYERS, 8 + half + 8, 6, 60, 16);
-    // Nombre de la carcel: JUSTO DEBAJO del texto "Console" (al ancho de la consola).
-    SetWindowPos(g_carcel, nullptr, 8, 26, half, 20, SWP_NOZORDER);
-    SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
-    SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
-    // La ultima columna rellena el ancho restante: asi NO queda una cabecera
-    // vacia (columna sin nombre) a la derecha.
+
+    // Recuadros Console (izq) y Players (der): el borde rodea cada panel.
+    SetWindowPos(g_grpConsole, nullptr, 8, topY, half, topH, SWP_NOZORDER);
+    SetWindowPos(g_grpPlayers, nullptr, 8 + half + 8, topY, half, topH, SWP_NOZORDER);
+
+    // Interior de Console: nombre de la carcel arriba (dentro del marco) + consola debajo.
+    int cInX = 16, cInW = half - 16;
+    int cInTop = topY + 18;                 // justo bajo el titulo "Console"
+    SetWindowPos(g_carcel,  nullptr, cInX, cInTop, cInW, 20, SWP_NOZORDER);
+    int conY = cInTop + 26;
+    int conH = topY + topH - conY - 10;
+    SetWindowPos(g_console, nullptr, cInX, conY, cInW, conH, SWP_NOZORDER);
+
+    // Interior de Players: la lista ocupa el recuadro.
+    int pInX = 8 + half + 8 + 8;
+    int pInW = half - 16;
+    int pInTop = topY + 18;
+    int pInH = topY + topH - pInTop - 10;
+    SetWindowPos(g_players, nullptr, pInX, pInTop, pInW, pInH, SWP_NOZORDER);
+
+    // La ultima columna rellena el ancho restante (sin cabecera vacia a la derecha).
     {
         int otras = 120 + 44 + 90 + 90;        // Nick + Ping + Room + Time Online
-        int ultima = half - 6 - otras;
+        int ultima = pInW - 6 - otras;
         if (ultima < 140) ultima = 140;
         ListView_SetColumnWidth(g_players, 4, ultima);
     }
 
     // Recuadros Status / Memory (con sus controles dentro).
-    int gy = paneTop + paneH + 6;       // borde superior de los recuadros
+    int gy = topY + topH + 6;           // borde superior de los recuadros
     int gh = bottomH - 12;              // alto del recuadro
     int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
