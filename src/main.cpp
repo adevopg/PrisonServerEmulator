@@ -61,14 +61,22 @@ static size_t    g_memBase = 0;       // memoria base para el delta
 // ---------------------------------------------------------------------------
 //  Utilidades
 // ---------------------------------------------------------------------------
+// Up Time progresivo (en ingles, como la foto):
+//   < 60s  -> "Ns"            (segundos hasta 60)
+//   < 60m  -> "M:SS"          (minutos hasta 60)
+//   < 24h  -> "H:MM:SS"       (horas hasta 24)
+//   >=24h  -> "N day(s) HH:MM:SS"
 static std::string fmtDuracion(long long seg) {
     if (seg < 0) seg = 0;
-    long long d = seg / 86400; seg %= 86400;
-    long long h = seg / 3600;  seg %= 3600;
-    long long m = seg / 60;    long long s = seg % 60;
+    long long d = seg / 86400; long long r = seg % 86400;
+    long long h = r / 3600;    r %= 3600;
+    long long m = r / 60;      long long s = r % 60;
     char b[64];
-    if (d > 0) snprintf(b, sizeof b, "%lld dias %02lld:%02lld:%02lld", d, h, m, s);
-    else       snprintf(b, sizeof b, "%02lld:%02lld:%02lld", h, m, s);
+    if (seg < 60)          snprintf(b, sizeof b, "%llds", s);
+    else if (seg < 3600)   snprintf(b, sizeof b, "%lld:%02lld", m, s);
+    else if (seg < 86400)  snprintf(b, sizeof b, "%lld:%02lld:%02lld", h, m, s);
+    else                   snprintf(b, sizeof b, "%lld %s %02lld:%02lld:%02lld",
+                                    d, (d == 1 ? "day" : "days"), h, m, s);
     return b;
 }
 
