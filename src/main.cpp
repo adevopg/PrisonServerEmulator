@@ -53,8 +53,7 @@ static HWND  g_console = nullptr, g_players = nullptr;
 static HWND  g_upTime = nullptr, g_numCli = nullptr, g_numRoom = nullptr, g_peak = nullptr;
 static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
 static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros
-static HWND  g_grpCarcel = nullptr;                       // marco de la carcel (contorno)
-static HWND  g_carcel = nullptr;                           // nombre de la carcel (texto)
+static HWND  g_carcel = nullptr;                           // nombre de la carcel (campo)
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
 static size_t    g_memBase = 0;       // memoria base para el delta
@@ -141,21 +140,17 @@ static void crearControles(HWND hwnd) {
     g_grpMem = CreateWindowExA(0, "BUTTON", "Memory", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
         0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
     SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
-    // Marco (contorno) para el nombre de la carcel, igual que Status/Memory.
-    g_grpCarcel = CreateWindowExA(0, "BUTTON", "", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
-    SendMessageA(g_grpCarcel, WM_SETFONT, (WPARAM)g_font, TRUE);
 
     etiqueta(hwnd, "Console", 0, 8, 6, 60, 16);
     etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
 
     // Nombre de la carcel: solo hay una, asi que es texto fijo (no desplegable).
-    // Va DEBAJO de la consola, centrado dentro de su marco (g_grpCarcel).
+    // Va JUSTO DEBAJO del texto "Console", en un campo con borde (como antes).
     {
         std::string carcel = cfg().nombrePrision.empty() ? "La Prision" : cfg().nombrePrision;
-        g_carcel = CreateWindowExA(0, "STATIC", carcel.c_str(),
+        g_carcel = CreateWindowExA(WS_EX_CLIENTEDGE, "STATIC", carcel.c_str(),
             WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-            0, 0, 10, 16, hwnd, nullptr, nullptr, nullptr);
+            0, 0, 10, 20, hwnd, nullptr, nullptr, nullptr);
         SendMessageA(g_carcel, WM_SETFONT, (WPARAM)g_font, TRUE);
     }
 
@@ -218,20 +213,15 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int carcelH = 34;                   // marco del nombre de la carcel (debajo de la consola)
-    int paneTop = 30;
-    int paneH = H - bottomH - paneTop - 6 - carcelH;
+    int paneTop = 50;                   // deja sitio para el campo de la carcel bajo "Console"
+    int paneH = H - bottomH - paneTop - 6;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
     pon(ID_T_PLAYERS, 8 + half + 8, 6, 60, 16);
+    // Nombre de la carcel: JUSTO DEBAJO del texto "Console" (al ancho de la consola).
+    SetWindowPos(g_carcel, nullptr, 8, 26, half, 20, SWP_NOZORDER);
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
-    // Nombre de la carcel: DEBAJO de la consola, dentro de su marco (igual que Status).
-    {
-        int cy = paneTop + paneH + 2;
-        SetWindowPos(g_grpCarcel, nullptr, 8, cy, half, carcelH - 2, SWP_NOZORDER);
-        SetWindowPos(g_carcel,    nullptr, 8 + 10, cy + 12, half - 20, 16, SWP_NOZORDER);
-    }
     // La ultima columna rellena el ancho restante: asi NO queda una cabecera
     // vacia (columna sin nombre) a la derecha.
     {
@@ -242,7 +232,7 @@ static void colocar(HWND hwnd) {
     }
 
     // Recuadros Status / Memory (con sus controles dentro).
-    int gy = paneTop + paneH + carcelH + 4;   // debajo de la franja de la carcel
+    int gy = paneTop + paneH + 6;       // borde superior de los recuadros
     int gh = bottomH - 12;              // alto del recuadro
     int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
