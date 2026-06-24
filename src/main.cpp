@@ -13,6 +13,7 @@
 // ============================================================================
 #include "prison/registro.hpp"
 #include "prison/monitor.hpp"
+#include "prison/configuracion.hpp"
 #include "prison/base_datos.hpp"
 #include "prison/servidor_login.hpp"
 #include "prison/servidor_mundo.hpp"
@@ -41,6 +42,7 @@ enum {
     ID_FREEZE, ID_LOCKED,
     // etiquetas de titulo (a la izquierda de cada campo hundido)
     ID_T_UPTIME = 1030, ID_T_NUMCLI, ID_T_NUMROOM, ID_T_PEAK, ID_T_MEMUSED, ID_T_MEMDELTA,
+    ID_T_PLAYERS = 1040,
     ID_TIMER   = 1,
 };
 
@@ -51,6 +53,7 @@ static HWND  g_console = nullptr, g_players = nullptr;
 static HWND  g_upTime = nullptr, g_numCli = nullptr, g_numRoom = nullptr, g_peak = nullptr;
 static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
 static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros
+static HWND  g_combo = nullptr;                            // desplegable de carcel
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
 static size_t    g_memBase = 0;       // memoria base para el delta
@@ -120,7 +123,19 @@ static void crearControles(HWND hwnd) {
         0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
     SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
 
-    etiqueta(hwnd, "Console", 0, 8, 4, 120, 16);
+    etiqueta(hwnd, "Console", 0, 8, 6, 60, 16);
+    etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
+
+    // Desplegable con el nombre de la carcel (arriba, centrado sobre la consola).
+    g_combo = CreateWindowExA(0, "COMBOBOX", "",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 200, 200, hwnd, nullptr, nullptr, nullptr);
+    SendMessageA(g_combo, WM_SETFONT, (WPARAM)g_font, TRUE);
+    {
+        std::string carcel = cfg().nombrePrision.empty() ? "La Prision" : cfg().nombrePrision;
+        SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)carcel.c_str());
+        SendMessageA(g_combo, CB_SETCURSEL, 0, 0);
+    }
 
     g_console = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
@@ -143,7 +158,7 @@ static void crearControles(HWND hwnd) {
     // Estado y memoria (abajo): titulo (etiqueta) + campo HUNDIDO con el valor.
     auto campo = [&](int id) -> HWND {
         HWND e = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
-            WS_CHILD | WS_VISIBLE | ES_READONLY | ES_LEFT,
+            WS_CHILD | WS_VISIBLE | ES_READONLY | ES_CENTER,
             0, 0, 10, 18, hwnd, (HMENU)(INT_PTR)id, nullptr, nullptr);
         SendMessageA(e, WM_SETFONT, (WPARAM)g_font, TRUE);
         return e;
@@ -176,39 +191,43 @@ static void crearControles(HWND hwnd) {
 static void colocar(HWND hwnd) {
     RECT rc; GetClientRect(hwnd, &rc);
     int W = rc.right, H = rc.bottom;
-    int bottomH = 104;
-    int paneTop = 22, paneH = H - bottomH - paneTop - 6;
+    auto pon = [&](int id, int x, int y, int w, int h) {
+        SetWindowPos(GetDlgItem(hwnd, id), nullptr, x, y, w, h, SWP_NOZORDER);
+    };
+
+    int bottomH = 128;
+    int paneTop = 30, paneH = H - bottomH - paneTop - 6;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
+    // Combo (carcel) arriba, centrado sobre la consola; etiqueta Players sobre su panel.
+    SetWindowPos(g_combo, nullptr, 8 + half / 2 - 100, 4, 200, 200, SWP_NOZORDER);
+    pon(ID_T_PLAYERS, 8 + half + 8, 8, 60, 16);
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
 
     // Recuadros Status / Memory (con sus controles dentro).
     int gy = paneTop + paneH + 6;       // borde superior de los recuadros
     int gh = bottomH - 12;              // alto del recuadro
-    int statusW = 330;
+    int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
     SetWindowPos(g_grpMem, nullptr, 8 + statusW + 8, gy,
                  W - (8 + statusW + 8) - 8, gh, SWP_NOZORDER);
 
-    auto pon = [&](int id, int x, int y, int w, int h) {
-        SetWindowPos(GetDlgItem(hwnd, id), nullptr, x, y, w, h, SWP_NOZORDER);
-    };
     int sx = 16, sy = gy + 16;          // interior de Status
-    // fila 1: Up Time
-    pon(ID_T_UPTIME, sx,      sy + 2,  66, 14);  pon(ID_UPTIME, sx + 70,  sy,      170, 18);
-    // fila 2: Num Clients | Num Rooms
-    pon(ID_T_NUMCLI, sx,      sy + 26, 70, 14);  pon(ID_NUMCLI, sx + 72,  sy + 24, 50, 18);
-    pon(ID_T_NUMROOM,sx + 140,sy + 26, 66, 14);  pon(ID_NUMROOM,sx + 208, sy + 24, 50, 18);
-    // fila 3: Peak Clients | checkboxes
-    pon(ID_T_PEAK,   sx,      sy + 50, 72, 14);  pon(ID_PEAK,   sx + 72,  sy + 48, 50, 18);
-    pon(ID_FREEZE,   sx + 140,sy + 46, 130, 18);
-    pon(ID_LOCKED,   sx + 140,sy + 64, 130, 18);
+    int vx = sx + 80;                   // x de los campos de valor
+    int longW = statusW - (vx - 8) - 12;// Up Time casi hasta el final del recuadro
+    pon(ID_T_UPTIME, sx, sy + 2,  74, 14);  pon(ID_UPTIME, vx, sy,      longW, 18);
+    pon(ID_T_NUMCLI, sx, sy + 26, 74, 14);  pon(ID_NUMCLI, vx, sy + 24, 70,    18);
+    pon(ID_T_NUMROOM,sx, sy + 50, 74, 14);  pon(ID_NUMROOM,vx, sy + 48, 70,    18);
+    pon(ID_T_PEAK,   sx, sy + 74, 74, 14);  pon(ID_PEAK,   vx, sy + 72, 70,    18);
+    // casillas a la derecha (alineadas con Num Clients / Num Rooms)
+    pon(ID_FREEZE,   vx + 86, sy + 25, 140, 18);
+    pon(ID_LOCKED,   vx + 86, sy + 49, 140, 18);
 
     int mx = 8 + statusW + 8 + 10, my = gy + 16;   // interior de Memory
-    pon(ID_T_MEMUSED, mx,      my + 2,  84, 14);  pon(ID_MEMUSED, mx + 86,  my,      150, 18);
-    pon(ID_T_MEMDELTA,mx,      my + 26, 84, 14);  pon(ID_MEMDELTA,mx + 86,  my + 24, 150, 18);
-    pon(ID_RESETDELTA,mx,      my + 50, 150, 22);
+    pon(ID_T_MEMUSED, mx, my + 2,  84, 14);  pon(ID_MEMUSED, mx + 88, my,      150, 18);
+    pon(ID_T_MEMDELTA,mx, my + 26, 84, 14);  pon(ID_MEMDELTA,mx + 88, my + 24, 150, 18);
+    pon(ID_RESETDELTA,mx, my + 54, 160, 22);
 }
 
 // Refresca estado + lista de jugadores (cada segundo).
