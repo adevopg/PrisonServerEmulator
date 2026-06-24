@@ -48,6 +48,7 @@ enum {
 static HWND  g_console = nullptr, g_players = nullptr;
 static HWND  g_upTime = nullptr, g_numCli = nullptr, g_numRoom = nullptr, g_peak = nullptr;
 static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
+static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
 static size_t    g_memBase = 0;       // memoria base para el delta
@@ -109,6 +110,14 @@ static void crearControles(HWND hwnd) {
     g_fontMono = CreateFontA(14, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET,
                              0, 0, 0, FIXED_PITCH | FF_MODERN, "Consolas");
 
+    // Recuadros (group box) PRIMERO, para que queden DETRAS de sus etiquetas.
+    g_grpStatus = CreateWindowExA(0, "BUTTON", "Status", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+        0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
+    SendMessageA(g_grpStatus, WM_SETFONT, (WPARAM)g_font, TRUE);
+    g_grpMem = CreateWindowExA(0, "BUTTON", "Memory", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+        0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
+    SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
+
     etiqueta(hwnd, "Console", 0, 8, 4, 120, 16);
 
     g_console = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
@@ -152,22 +161,33 @@ static void crearControles(HWND hwnd) {
 static void colocar(HWND hwnd) {
     RECT rc; GetClientRect(hwnd, &rc);
     int W = rc.right, H = rc.bottom;
-    int bottomH = 96;
+    int bottomH = 104;
     int paneTop = 22, paneH = H - bottomH - paneTop - 6;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
-    int y0 = paneTop + paneH + 8;
-    SetWindowPos(g_upTime,  nullptr, 12, y0,      260, 16, SWP_NOZORDER);
-    SetWindowPos(g_numCli,  nullptr, 12, y0 + 20, 160, 16, SWP_NOZORDER);
-    SetWindowPos(g_numRoom, nullptr, 180,y0 + 20, 160, 16, SWP_NOZORDER);
-    SetWindowPos(g_peak,    nullptr, 12, y0 + 40, 160, 16, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_FREEZE), nullptr, 180, y0 + 40, 130, 18, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_LOCKED), nullptr, 180, y0 + 60, 130, 18, SWP_NOZORDER);
-    SetWindowPos(g_memUsed,  nullptr, 360, y0,      260, 16, SWP_NOZORDER);
-    SetWindowPos(g_memDelta, nullptr, 360, y0 + 20, 260, 16, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_RESETDELTA), nullptr, 360, y0 + 44, 150, 22, SWP_NOZORDER);
+
+    // Recuadros Status / Memory (con sus controles dentro).
+    int gy = paneTop + paneH + 6;       // borde superior de los recuadros
+    int gh = bottomH - 12;              // alto del recuadro
+    int statusW = 330;
+    SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
+    SetWindowPos(g_grpMem, nullptr, 8 + statusW + 8, gy,
+                 W - (8 + statusW + 8) - 8, gh, SWP_NOZORDER);
+
+    int sx = 18, sy = gy + 18;          // interior de Status
+    SetWindowPos(g_upTime,  nullptr, sx,       sy,      300, 16, SWP_NOZORDER);
+    SetWindowPos(g_numCli,  nullptr, sx,       sy + 20, 150, 16, SWP_NOZORDER);
+    SetWindowPos(g_numRoom, nullptr, sx + 150, sy + 20, 150, 16, SWP_NOZORDER);
+    SetWindowPos(g_peak,    nullptr, sx,       sy + 40, 150, 16, SWP_NOZORDER);
+    SetWindowPos(GetDlgItem(hwnd, ID_FREEZE), nullptr, sx + 150, sy + 38, 140, 18, SWP_NOZORDER);
+    SetWindowPos(GetDlgItem(hwnd, ID_LOCKED), nullptr, sx + 150, sy + 58, 140, 18, SWP_NOZORDER);
+
+    int mx = 8 + statusW + 8 + 10, my = gy + 18;   // interior de Memory
+    SetWindowPos(g_memUsed,  nullptr, mx, my,      240, 16, SWP_NOZORDER);
+    SetWindowPos(g_memDelta, nullptr, mx, my + 20, 240, 16, SWP_NOZORDER);
+    SetWindowPos(GetDlgItem(hwnd, ID_RESETDELTA), nullptr, mx, my + 44, 150, 22, SWP_NOZORDER);
 }
 
 // Refresca estado + lista de jugadores (cada segundo).
