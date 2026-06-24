@@ -31,6 +31,48 @@ ServidorMundo::ServidorMundo(boost::asio::io_context& io)
     contadorMarcaTiempo_ = 0x55667788; // valor inicial original del mundo
 }
 
+// ----------------------------------------------------------------------------
+//  prepararContenido(): construye el OBJECTINFO UNA vez (al arrancar).
+//
+//  El servidor original carga y comprime la tabla de objetos al iniciarse y
+//  registra los tamanos ("Compressed Objectinfo size ...", "Objectinfo creado.").
+//  Antes nosotros recompriamos esto en CADA spawn de cliente: ineficiente y
+//  distinto al original. Ahora se hace una sola vez y se cachea en objInfo_.
+//
+//  Formato (descomprimido), parseado por el loader 0x587df0:
+//    [N:u16] N strings de categoria
+//    [M:u32] M defs ; por def: [id:u16][nameLen:u8][name\0][28 bytes][len3:u8=0]
+// ----------------------------------------------------------------------------
+void ServidorMundo::prepararContenido() {
+    const int NOBJ = 256;
+    static uint8_t op[16384]; int o = 0;
+    escribir16(op + o, 1); o += 2;                 // N = 1 categoria
+    op[o++] = 4; memcpy(op + o, "obj", 4); o += 4; // categoria[0] = "obj\0"
+    escribir32(op + o, NOBJ); o += 4;              // M = nº de defs
+    const int NN = (int)(sizeof NOMBRES_OBJETO / sizeof NOMBRES_OBJETO[0]);
+    for (int id = 0; id < NOBJ; id++) {
+        const char* nm = (id < NN) ? NOMBRES_OBJETO[id] : "Objeto";
+        int L = (int)strlen(nm) + 1;               // incluye el \0
+        escribir16(op + o, (uint16_t)id); o += 2;  // def id
+        op[o++] = (uint8_t)L;                      // nameLen
+        memcpy(op + o, nm, L); o += L;             // nombre real + \0
+        memset(op + o, 0, 28); o += 28;            // cabecera de def (28B) a cero
+        op[o++] = 0;                               // len3 = 0 (sub-array vacio)
+    }
+    static uint8_t z[16384]; int zl = cifrado::comprimirZlibStored(z, op, o);
+
+    objInfo_.resize(10 + zl);
+    escribir16(objInfo_.data(),     op::OBJECTINFO);
+    escribir32(objInfo_.data() + 2, (uint32_t)o);   // tamano descomprimido
+    escribir32(objInfo_.data() + 6, (uint32_t)zl);  // tamano comprimido
+    memcpy   (objInfo_.data() + 10, z, zl);
+
+    // Logs al estilo del servidor original.
+    registro::log("Uncompressed Objectinfo size %d", o);
+    registro::log("Compressed Objectinfo size %d", zl);
+    registro::log("Objectinfo creado.");
+}
+
 void ServidorMundo::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& remoto) {
     if (n < pr::TAM_CABECERA) return;
 
@@ -217,39 +259,17 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 Sleep(80);
             }
 
-            // OBJECTINFO (0x13a8): tabla de definiciones de objetos/items ([0x5ed334],
-            // hasta 256 entradas). La ficha in-game muestra el equipo/inventario del
-            // jugador leyendo objtable[id].nombre y haciendo strchr(nombre, ' '); si ese
-            // nombre es NULL -> CRASH. Por eso definimos TODOS los ids 0..255 con un
-            // nombre no vacio. Formato (descomprimido), parseado por el loader 0x587df0:
-            //   [N:u16] N strings de categoria
-            //   [M:u32] M defs ; por def: [id:u16][nameLen:u8][name\0][28 bytes][len3:u8=0]
+            // OBJECTINFO (0x13a8): tabla de objetos/items ([0x5ed334]). Ya viene
+            // construido y comprimido desde prepararContenido() (una sola vez al
+            // arrancar, como el original); aqui solo se envia el blob cacheado.
             {
-                const int NOBJ = 256;
-                static uint8_t op[16384]; int o = 0;
-                escribir16(op + o, 1); o += 2;                 // N = 1 categoria
-                op[o++] = 4; memcpy(op + o, "obj", 4); o += 4; // categoria[0] = "obj\0"
-                escribir32(op + o, NOBJ); o += 4;              // M = nº de defs
-                const int NN = (int)(sizeof NOMBRES_OBJETO / sizeof NOMBRES_OBJETO[0]);
-                for (int id = 0; id < NOBJ; id++) {
-                    const char* nm = (id < NN) ? NOMBRES_OBJETO[id] : "Objeto";
-                    int L = (int)strlen(nm) + 1;               // incluye el \0
-                    escribir16(op + o, (uint16_t)id); o += 2;  // def id
-                    op[o++] = (uint8_t)L;                      // nameLen
-                    memcpy(op + o, nm, L); o += L;             // nombre real + \0
-                    memset(op + o, 0, 28); o += 28;            // cabecera de def (28B) a cero
-                    op[o++] = 0;                               // len3 = 0 (sub-array vacio)
-                }
-                static uint8_t z[16384]; int zl = cifrado::comprimirZlibStored(z, op, o);
-                static uint8_t oi[10 + 16384]; int oil = 0;
-                escribir16(oi, op::OBJECTINFO); oil = 2;
-                escribir32(oi + oil, (uint32_t)o);  oil += 4;
-                escribir32(oi + oil, (uint32_t)zl); oil += 4;
-                memcpy(oi + oil, z, zl); oil += zl;
+                if (objInfo_.empty()) prepararContenido();   // por si acaso
                 static uint8_t m[10 + 16384 + 64];
-                int ml = pr::componerMensajeApp(m, con.idConexion, oi, oil);
+                int ml = pr::componerMensajeApp(m, con.idConexion,
+                                                objInfo_.data(), (int)objInfo_.size());
                 enviarFiable(con, remoto, m, ml);
-                registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 (%d objs, %dB->%dB) ***", NOBJ, o, zl);
+                registro::log("   [MUNDO] *** OBJECTINFO 0x13a8 enviado (%d bytes) ***",
+                              (int)objInfo_.size());
                 Sleep(80);
             }
 

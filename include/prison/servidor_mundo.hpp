@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <map>
+#include <vector>
 
 #include "prison/servidor_udp.hpp"
 #include "prison/conexion.hpp"
@@ -29,6 +30,11 @@ namespace prison {
 class ServidorMundo : public ServidorUdp {
 public:
     explicit ServidorMundo(boost::asio::io_context& io);
+
+    // Construye, UNA sola vez al arrancar, el contenido estatico del mundo
+    // (de momento el OBJECTINFO) y lo deja cacheado. Registra los tamanos
+    // (igual que el servidor original: "Compressed Objectinfo size ...").
+    void prepararContenido();
 
 protected:
     void procesarPaquete(uint8_t* datos, int n,
@@ -42,6 +48,10 @@ private:
 
     std::map<uint64_t, Conexion> conexiones_;
     uint32_t siguienteId_ = 0x20000001;
+
+    // OBJECTINFO ya construido (opcode + tamanos + zlib), listo para enviar a
+    // cada cliente. Se rellena en prepararContenido().
+    std::vector<uint8_t> objInfo_;
 };
 
 } // namespace prison

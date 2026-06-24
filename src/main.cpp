@@ -385,6 +385,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
     }
     updates.iniciar();
     mundo.iniciar();
+
+    // Contenido estatico del mundo (Objectinfo) creado una vez al arrancar,
+    // con los logs al estilo del servidor original.
+    mundo.prepararContenido();
+    registro::log("--- Connected to Login Server ---");
     registro::log("The Brave Game Server RUNNING");
 
     std::thread([&]{ login.ejecutar();   }).detach();
