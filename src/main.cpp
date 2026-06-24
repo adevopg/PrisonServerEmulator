@@ -61,22 +61,23 @@ static size_t    g_memBase = 0;       // memoria base para el delta
 // ---------------------------------------------------------------------------
 //  Utilidades
 // ---------------------------------------------------------------------------
-// Up Time progresivo (en ingles, palabras completas, como la foto):
-//   < 60s  -> "N second(s)"
-//   < 60m  -> "N minute(s)"
-//   < 24h  -> "N hour(s)"
-//   >=24h  -> "N day(s) HH:MM:SS"   (con ceros, igual que la foto)
+// Up Time progresivo (en ingles, palabra completa + reloj HH:MM:SS siempre):
+//   < 60s  -> "N second(s) 00:00:SS"
+//   < 60m  -> "N minute(s) 00:MM:SS"
+//   < 24h  -> "N hour(s) HH:MM:SS"
+//   >=24h  -> "N day(s) HH:MM:SS"     (con ceros, igual que la foto)
 static std::string fmtUptime(long long seg) {
     if (seg < 0) seg = 0;
     long long d = seg / 86400; long long r = seg % 86400;
     long long h = r / 3600;    r %= 3600;
     long long m = r / 60;      long long s = r % 60;
+    char etq[24];
+    if (seg < 60)          snprintf(etq, sizeof etq, "%lld second%s", s, s == 1 ? "" : "s");
+    else if (seg < 3600)   snprintf(etq, sizeof etq, "%lld minute%s", m, m == 1 ? "" : "s");
+    else if (seg < 86400)  snprintf(etq, sizeof etq, "%lld hour%s",   h, h == 1 ? "" : "s");
+    else                   snprintf(etq, sizeof etq, "%lld %s", d, d == 1 ? "day" : "days");
     char b[64];
-    if (seg < 60)          snprintf(b, sizeof b, "%lld second%s", s, s == 1 ? "" : "s");
-    else if (seg < 3600)   snprintf(b, sizeof b, "%lld minute%s", m, m == 1 ? "" : "s");
-    else if (seg < 86400)  snprintf(b, sizeof b, "%lld hour%s",   h, h == 1 ? "" : "s");
-    else                   snprintf(b, sizeof b, "%lld %s %02lld:%02lld:%02lld",
-                                    d, (d == 1 ? "day" : "days"), h, m, s);
+    snprintf(b, sizeof b, "%s %02lld:%02lld:%02lld", etq, h, m, s);
     return b;
 }
 
