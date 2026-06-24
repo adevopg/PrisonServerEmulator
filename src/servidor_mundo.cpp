@@ -59,7 +59,7 @@ void ServidorMundo::prepararContenido() {
         memset(op + o, 0, 28); o += 28;            // cabecera de def (28B) a cero
         op[o++] = 0;                               // len3 = 0 (sub-array vacio)
     }
-    static uint8_t z[16384]; int zl = cifrado::comprimirZlibStored(z, op, o);
+    static uint8_t z[16384]; int zl = cifrado::comprimirZlib(z, op, o);
 
     objInfo_.resize(10 + zl);
     escribir16(objInfo_.data(),     op::OBJECTINFO);
@@ -250,7 +250,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 memcpy(up + u, mapnm, mnl + 1); u += mnl + 1;   // nombre1
                 memcpy(up + u, mapnm, mnl + 1); u += mnl + 1;   // nombre2 = nombre del mapa
                 escribir16(up + u, 0); u += 2;                  // subcount = 0
-                uint8_t z[512]; int zl = cifrado::comprimirZlibStored(z, up, u);
+                uint8_t z[512]; int zl = cifrado::comprimirZlib(z, up, u);
                 uint8_t mi[700];
                 escribir16(mi, op::MAPINFO); escribir32(mi + 2, u); escribir32(mi + 6, zl); memcpy(mi + 10, z, zl);
                 uint8_t m[900]; int ml = pr::componerMensajeApp(m, con.idConexion, mi, 10 + zl);

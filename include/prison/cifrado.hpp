@@ -51,5 +51,10 @@ uint32_t adler32(const uint8_t* datos, int n);
 // Devuelve la longitud total del flujo zlib generado.
 int comprimirZlibStored(uint8_t* salida, const uint8_t* entrada, int n);
 
+// COMPRESIÓN ZLIB REAL (DEFLATE: LZ77 + Huffman fijo). Genera un flujo zlib
+// estándar que el inflate del cliente descomprime igual, pero esta vez SÍ
+// comprime de verdad (tamaño de salida menor). Devuelve la longitud del flujo.
+int comprimirZlib(uint8_t* salida, const uint8_t* entrada, int n);
+
 } // namespace cifrado
 } // namespace prison

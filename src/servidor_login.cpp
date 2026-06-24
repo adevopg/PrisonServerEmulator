@@ -423,7 +423,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             memcpy(blob + bi, sk, sl); bi += sl; blob[bi++] = 0;
 
             uint8_t comp[512];
-            int cl = cifrado::comprimirZlibStored(comp, blob, bi);
+            int cl = cifrado::comprimirZlib(comp, blob, bi);
             uint8_t sv[2 + 12 + 512]; int si = 0;
             escribir16(sv, op::LOGINACCEPTED); si = 2;
             escribir32(sv + si, 1); si += 4;            // count
@@ -467,7 +467,7 @@ void ServidorLogin::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                     for (const auto& h : d.habilidades) { blob[bl++] = h[0]; blob[bl++] = h[1]; blob[bl++] = h[2]; blob[bl++] = h[3]; }
                 }
                 static uint8_t comp[16384];
-                int cl = cifrado::comprimirZlibStored(comp, blob, bl);
+                int cl = cifrado::comprimirZlib(comp, blob, bl);
                 static uint8_t sv[16384]; int si = 0;
                 escribir16(sv, op::CLASSINFO); si = 2;
                 escribir32(sv + si, 0); si += 4;             // cabecera de 4 bytes (payload[0..3])
