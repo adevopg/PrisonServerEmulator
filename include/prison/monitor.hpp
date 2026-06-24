@@ -23,14 +23,15 @@ void drenarLog(std::vector<std::string>& salida);   // mueve las pendientes a 's
 
 // ---- JUGADORES / CLIENTES ----
 struct Jugador {
-    uint64_t    clave = 0;     // identificador de conexion
+    uint64_t    clave = 0;     // identificador de conexion (endpoint)
+    uint32_t    idServidor = 0;// idConexion asignado por el servidor ("server")
     std::string nick;          // nombre mostrado
     std::string sala;          // sala/zona
     int         ping = 0;      // ms
     long long   t0   = 0;      // epoch (segundos) de conexion -> "Time Online"
 };
 
-void clienteEntra(uint64_t clave, const std::string& nick, const std::string& sala);
+void clienteEntra(uint64_t clave, uint32_t idServidor, const std::string& nick, const std::string& sala);
 void clienteSala(uint64_t clave, const std::string& sala);
 void clientePing(uint64_t clave, int ping);
 void clienteSale(uint64_t clave);

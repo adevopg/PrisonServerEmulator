@@ -284,7 +284,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t m[0x300]; int ml = pr::componerMensajeApp(m, con.idConexion, c2, o);
             enviarFiable(con, remoto, m, ml);
             registro::log("   [MUNDO] *** SPAWN op2 CREAR name=%s id=%u ***", nm, pid);
-            monitor::clienteEntra(clave, nm, cfg().nombreMapa);  // -> lista Players de la GUI
+            monitor::clienteEntra(clave, con.idConexion, nm, cfg().nombreMapa);  // -> lista Players de la GUI
             Sleep(60);
         }
 

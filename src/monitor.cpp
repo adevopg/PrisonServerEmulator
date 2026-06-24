@@ -32,10 +32,10 @@ void drenarLog(std::vector<std::string>& salida) {
     colaLog.clear();
 }
 
-void clienteEntra(uint64_t clave, const std::string& nick, const std::string& sala) {
+void clienteEntra(uint64_t clave, uint32_t idServidor, const std::string& nick, const std::string& sala) {
     std::lock_guard<std::mutex> lk(mtx);
-    for (auto& j : jugs) if (j.clave == clave) { j.nick = nick; j.sala = sala; return; }
-    Jugador j; j.clave = clave; j.nick = nick; j.sala = sala; j.t0 = ahora();
+    for (auto& j : jugs) if (j.clave == clave) { j.idServidor = idServidor; j.nick = nick; j.sala = sala; return; }
+    Jugador j; j.clave = clave; j.idServidor = idServidor; j.nick = nick; j.sala = sala; j.t0 = ahora();
     jugs.push_back(j);
     if ((int)jugs.size() > pico) pico = (int)jugs.size();
 }

@@ -141,10 +141,9 @@ static void crearControles(HWND hwnd) {
         0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
     SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
 
-    etiqueta(hwnd, "Console", 0, 8, 6, 60, 16);
     etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
 
-    // Desplegable con el nombre de la carcel (arriba, centrado sobre la consola).
+    // Desplegable con el nombre de la carcel (arriba, al ancho de la consola).
     g_combo = CreateWindowExA(0, "COMBOBOX", "",
         WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
         0, 0, 200, 200, hwnd, nullptr, nullptr, nullptr);
@@ -165,9 +164,9 @@ static void crearControles(HWND hwnd) {
         0, 0, 10, 10, hwnd, (HMENU)ID_PLAYERS, nullptr, nullptr);
     ListView_SetExtendedListViewStyle(g_players, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
     SendMessageA(g_players, WM_SETFONT, (WPARAM)g_font, TRUE);
-    const char* cols[] = { "Nick", "Ping", "Room", "Time Online" };
-    int anchos[] = { 140, 50, 120, 110 };
-    for (int i = 0; i < 4; i++) {
+    const char* cols[] = { "Nick", "Ping", "Room", "Time Online", "server.client" };
+    int anchos[] = { 130, 46, 100, 100, 110 };
+    for (int i = 0; i < 5; i++) {
         LVCOLUMNA c; memset(&c, 0, sizeof c);
         c.mask = LVCF_TEXT | LVCF_WIDTH; c.pszText = (LPSTR)cols[i]; c.cx = anchos[i];
         ListView_InsertColumn(g_players, i, &c);
@@ -214,12 +213,12 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int paneTop = 30, paneH = H - bottomH - paneTop - 6;
+    int paneTop = 32, paneH = H - bottomH - paneTop - 6;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
-    // Combo (carcel) arriba, centrado sobre la consola; etiqueta Players sobre su panel.
-    SetWindowPos(g_combo, nullptr, 8 + half / 2 - 100, 4, 200, 200, SWP_NOZORDER);
-    pon(ID_T_PLAYERS, 8 + half + 8, 8, 60, 16);
+    // Combo (carcel) arriba, ocupando TODO el ancho de la consola; Players sobre su panel.
+    SetWindowPos(g_combo, nullptr, 8, 4, half, 200, SWP_NOZORDER);
+    pon(ID_T_PLAYERS, 8 + half + 8, 10, 60, 16);
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
 
@@ -280,6 +279,9 @@ static void refrescar() {
         ListView_SetItemText(g_players, (int)i, 2, (LPSTR)js[i].sala.c_str());
         std::string on = fmtReloj(ahora - js[i].t0);
         ListView_SetItemText(g_players, (int)i, 3, (LPSTR)on.c_str());
+        char sc[40];
+        snprintf(sc, sizeof sc, "%u.%u", js[i].idServidor, (unsigned)(js[i].clave & 0xffffu));
+        ListView_SetItemText(g_players, (int)i, 4, (LPSTR)sc);
     }
 }
 
@@ -347,7 +349,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
     RegisterClassA(&wc);
 
     HWND hwnd = CreateWindowExA(0, "PrisonServerWnd", "PrisonServer - La Prision",
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 900, 600,
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1010, 600,
         nullptr, nullptr, hInst, nullptr);
     ShowWindow(hwnd, nCmdShow ? nCmdShow : SW_SHOW);
     UpdateWindow(hwnd);
