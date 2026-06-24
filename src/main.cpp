@@ -145,11 +145,12 @@ static void crearControles(HWND hwnd) {
     etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
 
     // Nombre de la carcel: solo hay una, asi que es texto fijo (no desplegable).
+    // Va DEBAJO de la consola, en un campo con borde (como la foto).
     {
         std::string carcel = cfg().nombrePrision.empty() ? "La Prision" : cfg().nombrePrision;
-        g_carcel = CreateWindowExA(0, "STATIC", carcel.c_str(),
-            WS_CHILD | WS_VISIBLE | SS_CENTER,
-            0, 0, 10, 16, hwnd, nullptr, nullptr, nullptr);
+        g_carcel = CreateWindowExA(WS_EX_CLIENTEDGE, "STATIC", carcel.c_str(),
+            WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
+            0, 0, 10, 20, hwnd, nullptr, nullptr, nullptr);
         SendMessageA(g_carcel, WM_SETFONT, (WPARAM)g_font, TRUE);
     }
 
@@ -212,17 +213,27 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int paneTop = 30, paneH = H - bottomH - paneTop - 6;
+    int carcelH = 24;                   // franja para el nombre de la carcel (debajo de la consola)
+    int paneTop = 30;
+    int paneH = H - bottomH - paneTop - 6 - carcelH;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
-    // Nombre de la carcel centrado en la cabecera de la consola (a la derecha de "Console").
-    SetWindowPos(g_carcel, nullptr, 8 + 64, 6, half - 64, 16, SWP_NOZORDER);
     pon(ID_T_PLAYERS, 8 + half + 8, 6, 60, 16);
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
+    // Nombre de la carcel: DEBAJO de la consola, al mismo ancho que ella.
+    SetWindowPos(g_carcel, nullptr, 8, paneTop + paneH + 2, half, 20, SWP_NOZORDER);
+    // La ultima columna rellena el ancho restante: asi NO queda una cabecera
+    // vacia (columna sin nombre) a la derecha.
+    {
+        int otras = 120 + 44 + 90 + 90;        // Nick + Ping + Room + Time Online
+        int ultima = half - 6 - otras;
+        if (ultima < 140) ultima = 140;
+        ListView_SetColumnWidth(g_players, 4, ultima);
+    }
 
     // Recuadros Status / Memory (con sus controles dentro).
-    int gy = paneTop + paneH + 6;       // borde superior de los recuadros
+    int gy = paneTop + paneH + carcelH + 4;   // debajo de la franja de la carcel
     int gh = bottomH - 12;              // alto del recuadro
     int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
