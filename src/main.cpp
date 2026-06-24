@@ -61,22 +61,31 @@ static size_t    g_memBase = 0;       // memoria base para el delta
 // ---------------------------------------------------------------------------
 //  Utilidades
 // ---------------------------------------------------------------------------
-// Up Time progresivo (en ingles, como la foto):
-//   < 60s  -> "Ns"            (segundos hasta 60)
-//   < 60m  -> "M:SS"          (minutos hasta 60)
-//   < 24h  -> "H:MM:SS"       (horas hasta 24)
-//   >=24h  -> "N day(s) HH:MM:SS"
-static std::string fmtDuracion(long long seg) {
+// Up Time progresivo (en ingles, palabras completas, como la foto):
+//   < 60s  -> "N second(s)"
+//   < 60m  -> "N minute(s)"
+//   < 24h  -> "N hour(s)"
+//   >=24h  -> "N day(s) HH:MM:SS"   (con ceros, igual que la foto)
+static std::string fmtUptime(long long seg) {
     if (seg < 0) seg = 0;
     long long d = seg / 86400; long long r = seg % 86400;
     long long h = r / 3600;    r %= 3600;
     long long m = r / 60;      long long s = r % 60;
     char b[64];
-    if (seg < 60)          snprintf(b, sizeof b, "%llds", s);
-    else if (seg < 3600)   snprintf(b, sizeof b, "%lld:%02lld", m, s);
-    else if (seg < 86400)  snprintf(b, sizeof b, "%lld:%02lld:%02lld", h, m, s);
+    if (seg < 60)          snprintf(b, sizeof b, "%lld second%s", s, s == 1 ? "" : "s");
+    else if (seg < 3600)   snprintf(b, sizeof b, "%lld minute%s", m, m == 1 ? "" : "s");
+    else if (seg < 86400)  snprintf(b, sizeof b, "%lld hour%s",   h, h == 1 ? "" : "s");
     else                   snprintf(b, sizeof b, "%lld %s %02lld:%02lld:%02lld",
                                     d, (d == 1 ? "day" : "days"), h, m, s);
+    return b;
+}
+
+// Reloj HH:MM:SS (con ceros) para la columna "Time Online" de los jugadores.
+static std::string fmtReloj(long long seg) {
+    if (seg < 0) seg = 0;
+    long long h = seg / 3600, m = (seg / 60) % 60, s = seg % 60;
+    char b[32];
+    snprintf(b, sizeof b, "%02lld:%02lld:%02lld", h, m, s);
     return b;
 }
 
@@ -244,7 +253,7 @@ static void refrescar() {
     monitor::drenarLog(lineas);
     appendConsola(lineas);
 
-    setTexto(g_upTime,  fmtDuracion((long long)time(nullptr) - g_inicio));
+    setTexto(g_upTime,  fmtUptime((long long)time(nullptr) - g_inicio));
     setTexto(g_numCli,  std::to_string(monitor::numClientes()));
     setTexto(g_numRoom, "1");
     setTexto(g_peak,    std::to_string(monitor::picoClientes()));
@@ -268,7 +277,7 @@ static void refrescar() {
         char tmp[32]; snprintf(tmp, sizeof tmp, "%d", js[i].ping);
         ListView_SetItemText(g_players, (int)i, 1, tmp);
         ListView_SetItemText(g_players, (int)i, 2, (LPSTR)js[i].sala.c_str());
-        std::string on = fmtDuracion(ahora - js[i].t0);
+        std::string on = fmtReloj(ahora - js[i].t0);
         ListView_SetItemText(g_players, (int)i, 3, (LPSTR)on.c_str());
     }
 }
