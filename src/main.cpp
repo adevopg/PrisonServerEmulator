@@ -243,11 +243,11 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int inputH  = 26;                       // franja de la barra de comandos (sobre Status)
     int topY = 4;
-    int topH = H - bottomH - inputH - topY - 6;   // alto de los recuadros Console/Players
+    int topH = H - bottomH - topY - 6;     // alto de los recuadros Console/Players
     if (topH < 80) topH = 80;
     int half = (W - 24) / 2;
+    int barH = 22;                          // alto de la barra de comandos (dentro de Console)
 
     // Recuadros Console (izq) y Players (der): el borde rodea cada panel.
     SetWindowPos(g_grpConsole, nullptr, 8, topY, half, topH, SWP_NOZORDER);
@@ -258,8 +258,11 @@ static void colocar(HWND hwnd) {
     int cInTop = topY + 18;                 // justo bajo el titulo "Console"
     SetWindowPos(g_carcel,  nullptr, cInX, cInTop, cInW, 20, SWP_NOZORDER);
     int conY = cInTop + 26;
-    int conH = topY + topH - conY - 10;
+    int barY = topY + topH - 10 - barH;     // barra al fondo del recuadro Console
+    int conH = barY - conY - 4;
     SetWindowPos(g_console, nullptr, cInX, conY, cInW, conH, SWP_NOZORDER);
+    // Barra de comandos: DEBAJO del chat, dentro de Console y a su mismo ancho.
+    SetWindowPos(g_input,   nullptr, cInX, barY, cInW, barH, SWP_NOZORDER);
 
     // Interior de Players: la lista ocupa el recuadro.
     int pInX = 8 + half + 8 + 8;
@@ -276,12 +279,8 @@ static void colocar(HWND hwnd) {
         ListView_SetColumnWidth(g_players, 4, ultima);
     }
 
-    // Barra de comandos (editable) JUSTO ENCIMA de Status/Memory.
-    int inputY = topY + topH + 4;
-    SetWindowPos(g_input, nullptr, 8, inputY, W - 16, 20, SWP_NOZORDER);
-
     // Recuadros Status / Memory (con sus controles dentro).
-    int gy = inputY + inputH;           // borde superior de los recuadros
+    int gy = topY + topH + 6;           // borde superior de los recuadros
     int gh = bottomH - 12;              // alto del recuadro
     int statusW = 340;
     SetWindowPos(g_grpStatus, nullptr, 8, gy, statusW, gh, SWP_NOZORDER);
