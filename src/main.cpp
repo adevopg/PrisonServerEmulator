@@ -53,7 +53,7 @@ static HWND  g_console = nullptr, g_players = nullptr;
 static HWND  g_upTime = nullptr, g_numCli = nullptr, g_numRoom = nullptr, g_peak = nullptr;
 static HWND  g_memUsed = nullptr, g_memDelta = nullptr;
 static HWND  g_grpStatus = nullptr, g_grpMem = nullptr;   // recuadros
-static HWND  g_combo = nullptr;                            // desplegable de carcel
+static HWND  g_carcel = nullptr;                           // nombre de la carcel (texto)
 static HFONT g_font = nullptr, g_fontMono = nullptr;
 static long long g_inicio = 0;        // epoch de arranque (uptime)
 static size_t    g_memBase = 0;       // memoria base para el delta
@@ -141,17 +141,16 @@ static void crearControles(HWND hwnd) {
         0, 0, 10, 10, hwnd, nullptr, nullptr, nullptr);
     SendMessageA(g_grpMem, WM_SETFONT, (WPARAM)g_font, TRUE);
 
+    etiqueta(hwnd, "Console", 0, 8, 6, 60, 16);
     etiqueta(hwnd, "Players", ID_T_PLAYERS, 8, 6, 60, 16);   // se reubica en colocar()
 
-    // Desplegable con el nombre de la carcel (arriba, al ancho de la consola).
-    g_combo = CreateWindowExA(0, "COMBOBOX", "",
-        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 200, 200, hwnd, nullptr, nullptr, nullptr);
-    SendMessageA(g_combo, WM_SETFONT, (WPARAM)g_font, TRUE);
+    // Nombre de la carcel: solo hay una, asi que es texto fijo (no desplegable).
     {
         std::string carcel = cfg().nombrePrision.empty() ? "La Prision" : cfg().nombrePrision;
-        SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)carcel.c_str());
-        SendMessageA(g_combo, CB_SETCURSEL, 0, 0);
+        g_carcel = CreateWindowExA(0, "STATIC", carcel.c_str(),
+            WS_CHILD | WS_VISIBLE | SS_CENTER,
+            0, 0, 10, 16, hwnd, nullptr, nullptr, nullptr);
+        SendMessageA(g_carcel, WM_SETFONT, (WPARAM)g_font, TRUE);
     }
 
     g_console = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
@@ -164,8 +163,8 @@ static void crearControles(HWND hwnd) {
         0, 0, 10, 10, hwnd, (HMENU)ID_PLAYERS, nullptr, nullptr);
     ListView_SetExtendedListViewStyle(g_players, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
     SendMessageA(g_players, WM_SETFONT, (WPARAM)g_font, TRUE);
-    const char* cols[] = { "Nick", "Ping", "Room", "Time Online", "server.client" };
-    int anchos[] = { 130, 46, 100, 100, 110 };
+    const char* cols[] = { "Nick", "Ping", "Room", "Time Online", "Time Online (server.client)" };
+    int anchos[] = { 120, 44, 90, 90, 175 };
     for (int i = 0; i < 5; i++) {
         LVCOLUMNA c; memset(&c, 0, sizeof c);
         c.mask = LVCF_TEXT | LVCF_WIDTH; c.pszText = (LPSTR)cols[i]; c.cx = anchos[i];
@@ -213,12 +212,12 @@ static void colocar(HWND hwnd) {
     };
 
     int bottomH = 128;
-    int paneTop = 32, paneH = H - bottomH - paneTop - 6;
+    int paneTop = 30, paneH = H - bottomH - paneTop - 6;
     if (paneH < 60) paneH = 60;
     int half = (W - 24) / 2;
-    // Combo (carcel) arriba, ocupando TODO el ancho de la consola; Players sobre su panel.
-    SetWindowPos(g_combo, nullptr, 8, 4, half, 200, SWP_NOZORDER);
-    pon(ID_T_PLAYERS, 8 + half + 8, 10, 60, 16);
+    // Nombre de la carcel centrado en la cabecera de la consola (a la derecha de "Console").
+    SetWindowPos(g_carcel, nullptr, 8 + 64, 6, half - 64, 16, SWP_NOZORDER);
+    pon(ID_T_PLAYERS, 8 + half + 8, 6, 60, 16);
     SetWindowPos(g_console, nullptr, 8, paneTop, half, paneH, SWP_NOZORDER);
     SetWindowPos(g_players, nullptr, 8 + half + 8, paneTop, half, paneH, SWP_NOZORDER);
 
@@ -349,7 +348,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
     RegisterClassA(&wc);
 
     HWND hwnd = CreateWindowExA(0, "PrisonServerWnd", "PrisonServer - La Prision",
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1010, 600,
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1070, 600,
         nullptr, nullptr, hInst, nullptr);
     ShowWindow(hwnd, nCmdShow ? nCmdShow : SW_SHOW);
     UpdateWindow(hwnd);
