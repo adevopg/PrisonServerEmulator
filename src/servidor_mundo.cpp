@@ -13,6 +13,8 @@
 #include "prison/cifrado.hpp"
 #include "prison/utilidades.hpp"
 #include "prison/registro.hpp"
+#include "prison/monitor.hpp"
+#include "prison/nombres_objeto.hpp"
 
 #include <windows.h>   // Sleep
 #include <cstring>
@@ -99,6 +101,7 @@ void ServidorMundo::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& re
         escribir16(r + pr::OFF_TIPO, 5);
         enviar(r, len, remoto);
         conexiones_.erase(clave);
+        monitor::clienteSale(clave);
         registro::log("   [MUNDO] handshake tipo4 (FIN) -> tipo5 (FIN-ACK), cierro conexión");
         return;
     }
@@ -227,10 +230,13 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 escribir16(op + o, 1); o += 2;                 // N = 1 categoria
                 op[o++] = 4; memcpy(op + o, "obj", 4); o += 4; // categoria[0] = "obj\0"
                 escribir32(op + o, NOBJ); o += 4;              // M = nº de defs
+                const int NN = (int)(sizeof NOMBRES_OBJETO / sizeof NOMBRES_OBJETO[0]);
                 for (int id = 0; id < NOBJ; id++) {
+                    const char* nm = (id < NN) ? NOMBRES_OBJETO[id] : "Objeto";
+                    int L = (int)strlen(nm) + 1;               // incluye el \0
                     escribir16(op + o, (uint16_t)id); o += 2;  // def id
-                    op[o++] = 2;                               // nameLen (incluye \0)
-                    op[o++] = 'o'; op[o++] = 0;                // name = "o"
+                    op[o++] = (uint8_t)L;                      // nameLen
+                    memcpy(op + o, nm, L); o += L;             // nombre real + \0
                     memset(op + o, 0, 28); o += 28;            // cabecera de def (28B) a cero
                     op[o++] = 0;                               // len3 = 0 (sub-array vacio)
                 }
@@ -278,6 +284,7 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
             uint8_t m[0x300]; int ml = pr::componerMensajeApp(m, con.idConexion, c2, o);
             enviarFiable(con, remoto, m, ml);
             registro::log("   [MUNDO] *** SPAWN op2 CREAR name=%s id=%u ***", nm, pid);
+            monitor::clienteEntra(clave, nm, cfg().nombreMapa);  // -> lista Players de la GUI
             Sleep(60);
         }
 

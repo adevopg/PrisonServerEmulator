@@ -2,6 +2,7 @@
 //  registro.cpp  —  Implementación del sistema de logs (ver registro.hpp)
 // ============================================================================
 #include "prison/registro.hpp"
+#include "prison/monitor.hpp"
 
 #include <windows.h>
 #include <cstdio>
@@ -44,13 +45,16 @@ void log(const char* formato, ...) {
     vsnprintf(mensaje, sizeof mensaje, formato, args);
     va_end(args);
 
-    // Escribir en consola.
-    printf("[%s] %s\n", hora, mensaje);
-    fflush(stdout);
+    // Línea completa "[hora] mensaje".
+    char linea[2100];
+    snprintf(linea, sizeof linea, "[%s] %s", hora, mensaje);
+
+    // Enviar a la ventana (consola de la GUI).
+    monitor::emitirLog(linea);
 
     // Escribir en el archivo (si está abierto).
     if (g_archivoLog) {
-        fprintf(g_archivoLog, "[%s] %s\n", hora, mensaje);
+        fprintf(g_archivoLog, "%s\n", linea);
         fflush(g_archivoLog);
     }
 }

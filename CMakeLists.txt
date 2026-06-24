@@ -54,9 +54,10 @@ find_library(MYSQL_LIBRARY
 # ---------------------------------------------------------------------------
 #  Servidor principal (login + mundo + updates)
 # ---------------------------------------------------------------------------
-add_executable(login_server
+add_executable(login_server WIN32
     src/main.cpp
     src/registro.cpp
+    src/monitor.cpp
     src/cifrado.cpp
     src/protocolo_sns.cpp
     src/configuracion.cpp
@@ -77,6 +78,10 @@ target_link_libraries(login_server PRIVATE
     ${MYSQL_LIBRARY}
     ws2_32       # Winsock (lo necesita Boost.Asio por debajo)
     mswsock
+    comctl32     # ListView de la ventana (GUI)
+    gdi32        # fuentes/dibujo
+    user32       # ventana y controles
+    psapi        # memoria del proceso (Used Memory)
 )
 
 # En Windows hay que decir qué versión mínima de la API usamos (para Boost.Asio).
