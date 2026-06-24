@@ -54,6 +54,8 @@ private:
     std::vector<uint8_t> objInfo_;       // OBJECTSINFO (0x13a8) con los objetos
     std::vector<uint8_t> botsInfo_;      // BOTSINFO   (0x13a7) tabla vacia (0 NPCs)
     std::vector<uint8_t> suppliesInfo_;  // SUPPLIESINFO (0x13a6) tabla vacia (0 supplies)
+    std::vector<uint8_t> questsInfo_;    // QUESTSINFO (0x14ee) tabla vacia (0 misiones)
+    std::vector<uint8_t> boxesInfo_;     // BOXESINFO  (0x13a4) vacia (compSize=0 -> limpia)
 };
 
 } // namespace prison

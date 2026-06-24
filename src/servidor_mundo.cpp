@@ -104,6 +104,23 @@ void ServidorMundo::prepararContenido() {
         registro::log("Compressed botinfos size %d",   sz.second);
     }
 
+    // ---- QUESTSINFO (0x14ee): tabla vacia. El parser 0x49fb30 lee el numero de
+    // misiones en el dword de offset 0; con 0 no recorre nada. (4 bytes) ----
+    {
+        uint8_t q[4] = {0, 0, 0, 0};     // [count:u32 = 0]
+        construir(questsInfo_, op::QUESTSINFO, q, sizeof q);
+    }
+
+    // ---- BOXESINFO (0x13a4): vacia. El handler 0x4b4e4d comprueba el compSize;
+    // si es 0, NO descomprime y solo limpia las cajas (call 0x4af800). Por eso
+    // el mensaje es [opcode:2][uncompSize:4=0][compSize:4=0] sin datos zlib. ----
+    {
+        boxesInfo_.resize(10);
+        escribir16(boxesInfo_.data(),     op::BOXESINFO);
+        escribir32(boxesInfo_.data() + 2, 0);   // uncompSize = 0
+        escribir32(boxesInfo_.data() + 6, 0);   // compSize   = 0 -> el cliente limpia cajas
+    }
+
     // ---- COSMÉTICO (no es red): "rutas" es el pathfinding interno del servidor
     // y "modulos" los carga el propio cliente de sus ficheros locales
     // (DATA\NUEVO\MAPA\MODULO*.pcx). No hay datos que enviar; se registran para
@@ -334,6 +351,24 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                 enviarFiable(con, remoto, m, ml);
                 registro::log("   [MUNDO] *** SUPPLIESINFO 0x13a6 enviado (%d bytes) ***",
                               (int)suppliesInfo_.size());
+                Sleep(80);
+            }
+            {
+                uint8_t m[256];
+                int ml = pr::componerMensajeApp(m, con.idConexion,
+                                                questsInfo_.data(), (int)questsInfo_.size());
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   [MUNDO] *** QUESTSINFO 0x14ee enviado (%d bytes) ***",
+                              (int)questsInfo_.size());
+                Sleep(80);
+            }
+            {
+                uint8_t m[256];
+                int ml = pr::componerMensajeApp(m, con.idConexion,
+                                                boxesInfo_.data(), (int)boxesInfo_.size());
+                enviarFiable(con, remoto, m, ml);
+                registro::log("   [MUNDO] *** BOXESINFO 0x13a4 enviado (%d bytes) ***",
+                              (int)boxesInfo_.size());
                 Sleep(80);
             }
 
