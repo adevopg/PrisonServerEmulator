@@ -111,15 +111,9 @@ void ServidorMundo::prepararContenido() {
         construir(questsInfo_, op::QUESTSINFO, q, sizeof q);
     }
 
-    // ---- BOXESINFO (0x13a4): vacia. El handler 0x4b4e4d comprueba el compSize;
-    // si es 0, NO descomprime y solo limpia las cajas (call 0x4af800). Por eso
-    // el mensaje es [opcode:2][uncompSize:4=0][compSize:4=0] sin datos zlib. ----
-    {
-        boxesInfo_.resize(10);
-        escribir16(boxesInfo_.data(),     op::BOXESINFO);
-        escribir32(boxesInfo_.data() + 2, 0);   // uncompSize = 0
-        escribir32(boxesInfo_.data() + 6, 0);   // compSize   = 0 -> el cliente limpia cajas
-    }
+    // NOTA: BOXESINFO (0x13a4) se construye pero NO se usa en la secuencia de
+    // SPAWN porque su parser depende de la sala (global [0x5ed9b4]) que aun no
+    // existe; ver la nota en el envio. Queda documentado para el futuro.
 
     // ---- COSMÉTICO (no es red): "rutas" es el pathfinding interno del servidor
     // y "modulos" los carga el propio cliente de sus ficheros locales
@@ -362,15 +356,11 @@ void ServidorMundo::procesarDatos(uint8_t* buf, int n, const udp::endpoint& remo
                               (int)questsInfo_.size());
                 Sleep(80);
             }
-            {
-                uint8_t m[256];
-                int ml = pr::componerMensajeApp(m, con.idConexion,
-                                                boxesInfo_.data(), (int)boxesInfo_.size());
-                enviarFiable(con, remoto, m, ml);
-                registro::log("   [MUNDO] *** BOXESINFO 0x13a4 enviado (%d bytes) ***",
-                              (int)boxesInfo_.size());
-                Sleep(80);
-            }
+            // NOTA: BOXESINFO (0x13a4) NO se envia aqui. Su parser (0x4af800) usa
+            // el global de sala [0x5ed9b4], que todavia es NULL en este punto
+            // (la sala se crea con ROOMPARAMS, despues). Enviarlo aqui crashea el
+            // cliente al loguear con %s sobre la sala nula. Ademas no hace falta:
+            // sin BOXESINFO el cliente deja las cajas vacias por defecto.
 
             // ROOMPARAMS (opcode 0): sala + mapa.
             {
