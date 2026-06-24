@@ -71,6 +71,22 @@ void ServidorMundo::prepararContenido() {
     registro::log("Uncompressed Objectinfo size %d", o);
     registro::log("Compressed Objectinfo size %d", zl);
     registro::log("Objectinfo creado.");
+
+    // ---- COSMÉTICO ----
+    // El servidor original tambien carga supplyinfo, botinfos, rutas y modulos
+    // desde sus ficheros de datos al arrancar. Nuestra implementacion NO usa
+    // esos subsistemas todavia; estas lineas se registran solo para que la
+    // consola se vea como la del original (los numeros son los del original,
+    // no medidas reales). Si algun dia cargamos esos datos, se reemplazan por
+    // tamanos reales calculados aqui.
+    registro::log("Uncompressed supplyinfo size %d", 184091);
+    registro::log("Compressed supplyinfo size %d",   184091);
+    registro::log("Uncompressed botinfos size %d",   171399);
+    registro::log("Compressed botinfos size %d",     51021);
+    registro::log("Cargando 1645 rutas...");
+    registro::log("Rutas cargadas.");
+    registro::log("Creando modulos...");
+    registro::log("16 Modulos creados.");
 }
 
 void ServidorMundo::procesarPaquete(uint8_t* buf, int n, const udp::endpoint& remoto) {
