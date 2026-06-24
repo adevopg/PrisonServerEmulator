@@ -39,6 +39,8 @@ enum {
     ID_UPTIME  = 1010, ID_NUMCLI, ID_NUMROOM, ID_PEAK,
     ID_MEMUSED, ID_MEMDELTA, ID_RESETDELTA,
     ID_FREEZE, ID_LOCKED,
+    // etiquetas de titulo (a la izquierda de cada campo hundido)
+    ID_T_UPTIME = 1030, ID_T_NUMCLI, ID_T_NUMROOM, ID_T_PEAK, ID_T_MEMUSED, ID_T_MEMDELTA,
     ID_TIMER   = 1,
 };
 
@@ -138,13 +140,26 @@ static void crearControles(HWND hwnd) {
         ListView_InsertColumn(g_players, i, &c);
     }
 
-    // Estado y memoria (abajo).
-    g_upTime  = etiqueta(hwnd, "Up Time: -",        ID_UPTIME,  0, 0, 260, 16);
-    g_numCli  = etiqueta(hwnd, "Num Clients: 0",    ID_NUMCLI,  0, 0, 160, 16);
-    g_numRoom = etiqueta(hwnd, "Num Rooms: 1",      ID_NUMROOM, 0, 0, 160, 16);
-    g_peak    = etiqueta(hwnd, "Peak Clients: 0",   ID_PEAK,    0, 0, 160, 16);
-    g_memUsed = etiqueta(hwnd, "Used Memory: -",    ID_MEMUSED, 0, 0, 260, 16);
-    g_memDelta= etiqueta(hwnd, "Memory Delta: 0",   ID_MEMDELTA,0, 0, 260, 16);
+    // Estado y memoria (abajo): titulo (etiqueta) + campo HUNDIDO con el valor.
+    auto campo = [&](int id) -> HWND {
+        HWND e = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+            WS_CHILD | WS_VISIBLE | ES_READONLY | ES_LEFT,
+            0, 0, 10, 18, hwnd, (HMENU)(INT_PTR)id, nullptr, nullptr);
+        SendMessageA(e, WM_SETFONT, (WPARAM)g_font, TRUE);
+        return e;
+    };
+    etiqueta(hwnd, "Up Time:",     ID_T_UPTIME,  0, 0, 80, 16);
+    etiqueta(hwnd, "Num Clients:", ID_T_NUMCLI,  0, 0, 80, 16);
+    etiqueta(hwnd, "Num Rooms:",   ID_T_NUMROOM, 0, 0, 80, 16);
+    etiqueta(hwnd, "Peak Clients:",ID_T_PEAK,    0, 0, 80, 16);
+    etiqueta(hwnd, "Used Memory:", ID_T_MEMUSED, 0, 0, 80, 16);
+    etiqueta(hwnd, "Memory Delta:",ID_T_MEMDELTA,0, 0, 80, 16);
+    g_upTime  = campo(ID_UPTIME);
+    g_numCli  = campo(ID_NUMCLI);
+    g_numRoom = campo(ID_NUMROOM);
+    g_peak    = campo(ID_PEAK);
+    g_memUsed = campo(ID_MEMUSED);
+    g_memDelta= campo(ID_MEMDELTA);
 
     HWND fr = CreateWindowExA(0, "BUTTON", "Freeze Players", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
         0, 0, 130, 18, hwnd, (HMENU)ID_FREEZE, nullptr, nullptr);
@@ -176,18 +191,24 @@ static void colocar(HWND hwnd) {
     SetWindowPos(g_grpMem, nullptr, 8 + statusW + 8, gy,
                  W - (8 + statusW + 8) - 8, gh, SWP_NOZORDER);
 
-    int sx = 18, sy = gy + 18;          // interior de Status
-    SetWindowPos(g_upTime,  nullptr, sx,       sy,      300, 16, SWP_NOZORDER);
-    SetWindowPos(g_numCli,  nullptr, sx,       sy + 20, 150, 16, SWP_NOZORDER);
-    SetWindowPos(g_numRoom, nullptr, sx + 150, sy + 20, 150, 16, SWP_NOZORDER);
-    SetWindowPos(g_peak,    nullptr, sx,       sy + 40, 150, 16, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_FREEZE), nullptr, sx + 150, sy + 38, 140, 18, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_LOCKED), nullptr, sx + 150, sy + 58, 140, 18, SWP_NOZORDER);
+    auto pon = [&](int id, int x, int y, int w, int h) {
+        SetWindowPos(GetDlgItem(hwnd, id), nullptr, x, y, w, h, SWP_NOZORDER);
+    };
+    int sx = 16, sy = gy + 16;          // interior de Status
+    // fila 1: Up Time
+    pon(ID_T_UPTIME, sx,      sy + 2,  66, 14);  pon(ID_UPTIME, sx + 70,  sy,      170, 18);
+    // fila 2: Num Clients | Num Rooms
+    pon(ID_T_NUMCLI, sx,      sy + 26, 70, 14);  pon(ID_NUMCLI, sx + 72,  sy + 24, 50, 18);
+    pon(ID_T_NUMROOM,sx + 140,sy + 26, 66, 14);  pon(ID_NUMROOM,sx + 208, sy + 24, 50, 18);
+    // fila 3: Peak Clients | checkboxes
+    pon(ID_T_PEAK,   sx,      sy + 50, 72, 14);  pon(ID_PEAK,   sx + 72,  sy + 48, 50, 18);
+    pon(ID_FREEZE,   sx + 140,sy + 46, 130, 18);
+    pon(ID_LOCKED,   sx + 140,sy + 64, 130, 18);
 
-    int mx = 8 + statusW + 8 + 10, my = gy + 18;   // interior de Memory
-    SetWindowPos(g_memUsed,  nullptr, mx, my,      240, 16, SWP_NOZORDER);
-    SetWindowPos(g_memDelta, nullptr, mx, my + 20, 240, 16, SWP_NOZORDER);
-    SetWindowPos(GetDlgItem(hwnd, ID_RESETDELTA), nullptr, mx, my + 44, 150, 22, SWP_NOZORDER);
+    int mx = 8 + statusW + 8 + 10, my = gy + 16;   // interior de Memory
+    pon(ID_T_MEMUSED, mx,      my + 2,  84, 14);  pon(ID_MEMUSED, mx + 86,  my,      150, 18);
+    pon(ID_T_MEMDELTA,mx,      my + 26, 84, 14);  pon(ID_MEMDELTA,mx + 86,  my + 24, 150, 18);
+    pon(ID_RESETDELTA,mx,      my + 50, 150, 22);
 }
 
 // Refresca estado + lista de jugadores (cada segundo).
@@ -196,16 +217,17 @@ static void refrescar() {
     monitor::drenarLog(lineas);
     appendConsola(lineas);
 
-    setTexto(g_upTime,  "Up Time: " + fmtDuracion((long long)time(nullptr) - g_inicio));
-    setTexto(g_numCli,  "Num Clients: " + std::to_string(monitor::numClientes()));
-    setTexto(g_peak,    "Peak Clients: " + std::to_string(monitor::picoClientes()));
+    setTexto(g_upTime,  fmtDuracion((long long)time(nullptr) - g_inicio));
+    setTexto(g_numCli,  std::to_string(monitor::numClientes()));
+    setTexto(g_numRoom, "1");
+    setTexto(g_peak,    std::to_string(monitor::picoClientes()));
 
     size_t mem = memoriaUsada();
     char mb[64];
-    snprintf(mb, sizeof mb, "Used Memory: %zu KB", mem / 1024);
+    snprintf(mb, sizeof mb, "%zu KB", mem / 1024);
     setTexto(g_memUsed, mb);
     long long delta = (long long)mem - (long long)g_memBase;
-    snprintf(mb, sizeof mb, "Memory Delta: %lld KB", delta / 1024);
+    snprintf(mb, sizeof mb, "%lld KB", delta / 1024);
     setTexto(g_memDelta, mb);
 
     auto js = monitor::jugadores();
