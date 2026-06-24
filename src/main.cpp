@@ -410,7 +410,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
     wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
     RegisterClassA(&wc);
 
-    HWND hwnd = CreateWindowExA(0, "PrisonServerWnd", "PrisonServer - La Prision",
+    HWND hwnd = CreateWindowExA(0, "PrisonServerWnd", "Prison 300",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1070, 600,
         nullptr, nullptr, hInst, nullptr);
     ShowWindow(hwnd, nCmdShow ? nCmdShow : SW_SHOW);
